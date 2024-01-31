@@ -1,0 +1,224 @@
+
+loadrt  [KINS]KINEMATICS
+loadrt  [EMCMOT]EMCMOT base_period_nsec=[EMCMOT]BASE_PERIOD servo_period_nsec=[EMCMOT]SERVO_PERIOD num_joints=[KINS]JOINTS
+loadrt  threads name1=udp-thread period1=[EMCMOT]ESP32UDP_PERIOD fp1=1
+
+loadrt  esp32udp
+loadrt  and2                        names=no-estop
+loadrt  or2                         names=tool-probes
+loadrt  dbounce                     names=home.x.debounce,home.y.debounce,home.z.debounce,probe.debounce
+loadrt  limit3                      names=comp-limit
+loadrt  offset                      names=comp-offset
+loadrt  pid                         names=pid.x,pid.y,pid.z
+loadrt scale count=2
+loadrt abs count=1
+#loadrt pwmgen output_type=0
+
+
+addf    esp32udp                    udp-thread
+addf    esp32udp.udp-receive        udp-thread
+
+addf    comp-limit                  servo-thread
+addf    comp-offset.update-output   servo-thread
+addf    comp-offset.update-feedback servo-thread
+addf    pid.x.do-pid-calcs          servo-thread
+addf    pid.y.do-pid-calcs          servo-thread
+addf    pid.z.do-pid-calcs          servo-thread
+addf    motion-command-handler      servo-thread
+addf    motion-controller           servo-thread
+addf    no-estop                    servo-thread
+addf 	tool-probes  				servo-thread
+addf    home.x.debounce             servo-thread
+addf    home.y.debounce             servo-thread
+addf    home.z.debounce             servo-thread
+addf    probe.debounce              servo-thread
+addf 	scale.0 					servo-thread
+addf 	scale.1 					servo-thread
+addf 	abs.0 						servo-thread
+#addf 	pwmgen.update 				servo-thread
+#addf 	pwmgen.make-pulses 			servo-thread
+
+setp 	scale.0.gain 				0.0000333 			#this will make m3 s1000 give 100% output and m3 s100 10%
+
+setp    home.x.debounce.delay       3
+setp    home.y.debounce.delay       3
+setp    home.z.debounce.delay       3
+setp    probe.debounce.delay        3
+
+setp    comp-limit.maxa             20
+
+setp    esp32udp.0.dirsetup              [JOINT_0]STEPGEN_DIRSETUP
+setp    esp32udp.1.dirsetup              [JOINT_1]STEPGEN_DIRSETUP
+setp    esp32udp.2.dirsetup              [JOINT_2]STEPGEN_DIRSETUP
+
+setp    esp32udp.0.accel                 [JOINT_0]STEPGEN_ACCEL
+setp    esp32udp.1.accel                 [JOINT_1]STEPGEN_ACCEL
+setp    esp32udp.2.accel                 [JOINT_2]STEPGEN_ACCEL
+
+setp    esp32udp.0.scale                 [JOINT_0]SCALE
+setp    esp32udp.1.scale                 [JOINT_1]SCALE
+setp    esp32udp.2.scale                 [JOINT_2]SCALE
+
+setp    pid.x.Pgain                 [JOINT_0]PID_GAIN_P
+setp    pid.x.Igain                 [JOINT_0]PID_GAIN_I
+setp    pid.x.Dgain                 [JOINT_0]PID_GAIN_D
+setp    pid.x.bias                  [JOINT_0]PID_BIAS
+setp    pid.x.FF0                   [JOINT_0]PID_FF0
+setp    pid.x.FF1                   [JOINT_0]PID_FF1
+setp    pid.x.FF2                   [JOINT_0]PID_FF2
+setp    pid.x.FF3                   [JOINT_0]PID_FF3
+setp    pid.x.deadband              [JOINT_0]PID_DEADBAND
+setp    pid.x.maxerror              [JOINT_0]PID_MAXERROR
+setp    pid.x.maxerrorI             [JOINT_0]PID_MAXERROR_I
+setp    pid.x.maxerrorD             [JOINT_0]PID_MAXERROR_D
+setp    pid.x.maxcmdD               [JOINT_0]PID_MAXCMD_D
+setp    pid.x.maxcmdDD              [JOINT_0]PID_MAXCMD_DD
+setp    pid.x.maxcmdDDD             [JOINT_0]PID_MAXCMD_DDD
+setp    pid.x.maxoutput             [JOINT_0]PID_MAXOUTPUT
+setp    pid.x.error-previous-target [JOINT_0]PID_EPT
+
+setp    pid.y.Pgain                 [JOINT_1]PID_GAIN_P
+setp    pid.y.Igain                 [JOINT_1]PID_GAIN_I
+setp    pid.y.Dgain                 [JOINT_1]PID_GAIN_D
+setp    pid.y.bias                  [JOINT_1]PID_BIAS
+setp    pid.y.FF0                   [JOINT_1]PID_FF0
+setp    pid.y.FF1                   [JOINT_1]PID_FF1
+setp    pid.y.FF2                   [JOINT_1]PID_FF2
+setp    pid.y.FF3                   [JOINT_1]PID_FF3
+setp    pid.y.deadband              [JOINT_1]PID_DEADBAND
+setp    pid.y.maxerror              [JOINT_1]PID_MAXERROR
+setp    pid.y.maxerrorI             [JOINT_1]PID_MAXERROR_I
+setp    pid.y.maxerrorD             [JOINT_1]PID_MAXERROR_D
+setp    pid.y.maxcmdD               [JOINT_1]PID_MAXCMD_D
+setp    pid.y.maxcmdDD              [JOINT_1]PID_MAXCMD_DD
+setp    pid.y.maxcmdDDD             [JOINT_1]PID_MAXCMD_DDD
+setp    pid.y.maxoutput             [JOINT_1]PID_MAXOUTPUT
+setp    pid.y.error-previous-target [JOINT_1]PID_EPT
+
+setp    pid.z.Pgain                 [JOINT_2]PID_GAIN_P
+setp    pid.z.Igain                 [JOINT_2]PID_GAIN_I
+setp    pid.z.Dgain                 [JOINT_2]PID_GAIN_D
+setp    pid.z.bias                  [JOINT_2]PID_BIAS
+setp    pid.z.FF0                   [JOINT_2]PID_FF0
+setp    pid.z.FF1                   [JOINT_2]PID_FF1
+setp    pid.z.FF2                   [JOINT_2]PID_FF2
+setp    pid.z.FF3                   [JOINT_2]PID_FF3
+setp    pid.z.deadband              [JOINT_2]PID_DEADBAND
+setp    pid.z.maxerror              [JOINT_2]PID_MAXERROR
+setp    pid.z.maxerrorI             [JOINT_2]PID_MAXERROR_I
+setp    pid.z.maxerrorD             [JOINT_2]PID_MAXERROR_D
+setp    pid.z.maxcmdD               [JOINT_2]PID_MAXCMD_D
+setp    pid.z.maxcmdDD              [JOINT_2]PID_MAXCMD_DD
+setp    pid.z.maxcmdDDD             [JOINT_2]PID_MAXCMD_DDD
+setp    pid.z.maxoutput             [JOINT_2]PID_MAXOUTPUT
+setp    pid.z.error-previous-target [JOINT_2]PID_EPT
+
+#======= X axis ===========================
+
+net     x-pos-cmd       joint.0.motor-pos-cmd       pid.x.command       esp32udp.0.position-cmd
+net     x-vel-cmd-pre   joint.0.vel-cmd             pid.x.command-deriv
+net     x-pos-fb        esp32udp.0.position-fb           pid.x.feedback      joint.0.motor-pos-fb
+net     x-vel-fb        esp32udp.0.velocity-fb           pid.x.feedback-deriv
+net     x-vel-cmd       pid.x.output                esp32udp.0.velocity-cmd
+
+#net     x-pos-cmd       joint.0.motor-pos-cmd       esp32udp.0.position-cmd
+#net     x-pos-fb        esp32udp.0.position-fb           joint.0.motor-pos-fb
+#net     x-vel-cmd       joint.0.vel-cmd             esp32udp.0.velocity-cmd
+
+#======= Y axis ===========================
+
+net     y-pos-cmd       joint.1.motor-pos-cmd       pid.y.command       esp32udp.1.position-cmd
+net     y-vel-cmd-pre   joint.1.vel-cmd             pid.y.command-deriv
+net     y-pos-fb        esp32udp.1.position-fb           pid.y.feedback      joint.1.motor-pos-fb
+net     y-vel-fb        esp32udp.1.velocity-fb           pid.y.feedback-deriv
+net     y-vel-cmd       pid.y.output                esp32udp.1.velocity-cmd
+
+#net     y-pos-cmd       joint.1.motor-pos-cmd       esp32udp.1.position-cmd
+#net     y-pos-fb        esp32udp.1.position-fb           joint.1.motor-pos-fb
+#net     y-vel-cmd       joint.1.vel-cmd             esp32udp.1.velocity-cmd
+
+#======= Z axis with offset ===============
+
+
+net     z-comp          comp-limit.out              comp-offset.offset
+net     z-pos-cmd       joint.2.motor-pos-cmd       comp-offset.in
+net     z-vel-cmd-pre   joint.2.vel-cmd             pid.z.command-deriv
+net     z-pos-fb        esp32udp.2.position-fb           comp-offset.fb-in   pid.z.feedback
+net     z-vel-fb        esp32udp.2.velocity-fb           pid.z.feedback-deriv
+net     z-pos-cmd-comp  comp-offset.out             pid.z.command       esp32udp.2.position-cmd
+net     z-pos-fb-comp   comp-offset.fb-out          joint.2.motor-pos-fb
+net     z-vel-cmd       pid.z.output                esp32udp.2.velocity-cmd
+
+#net     z-comp          comp-limit.out              comp-offset.offset
+#net     z-pos-cmd       joint.2.motor-pos-cmd       comp-offset.in
+#net     z-pos-fb        esp32udp.2.position-fb           comp-offset.fb-in
+#net     z-pos-cmd-comp  comp-offset.out             esp32udp.2.position-cmd
+#net     z-pos-fb-comp   comp-offset.fb-out          joint.2.motor-pos-fb
+#net     z-vel-cmd       joint.2.vel-cmd                esp32udp.2.velocity-cmd
+
+#===========================================
+
+
+net     no-estop-a      iocontrol.0.user-enable-out 	no-estop.in0
+net     no-estop-b      esp32udp.connected          	no-estop.in1
+net     no-estop-out    no-estop.out                	iocontrol.0.emc-enable-in
+
+
+net     tool-probes-a      esp32udp.in.02 				tool-probes.in0
+net     tool-probes-b      esp32udp.in.03            	tool-probes.in1
+
+net     probe-in-pre    tool-probes.out         		probe.debounce.in
+net     probe-in        probe.debounce.out          	motion.probe-input
+
+#===========================================
+
+#net     x-home-pre      esp32udp.in.05                 home.x.debounce.in
+#net     y-home-pre      esp32udp.in.06                 home.y.debounce.in
+#net     z-home-pre      esp32udp.in.04                 home.z.debounce.in
+
+net     x-home          home.x.debounce.out         	joint.0.home-sw-in
+net     y-home          home.y.debounce.out         	joint.1.home-sw-in
+net     z-home          home.z.debounce.out         	joint.2.home-sw-in
+
+
+#===========================================
+
+#net estop-loop 	iocontrol.0.user-enable-out 	iocontrol.0.emc-enable-in
+
+net     no-estop-out    no-estop.out                iocontrol.0.emc-enable-in
+
+#===========================================
+
+#net     machine-is-on   halui.machine.is-on         esp32udp.out.00 esp32udp.enable
+net     machine-is-on   halui.machine.is-on         esp32udp.out.00 esp32udp.enable  pid.x.enable  pid.y.enable pid.z.enable  
+
+#===========================================
+
+#net     spindle-on      spindle.0.on                esp32udp.out.01
+
+#setp   esp32udp.pwm.01.freq   4000
+#setp   esp32udp.pwm.01        0
+
+#net spindle-speed-scale spindle.0.speed-out => scale.0.in
+#net spindle-speed-abs scale.0.out => abs.0.in
+#net spindle-speed-DAC abs.0.out  => esp32udp.pwm.01
+
+#net spindle-speed-cmd spindle.0.speed-out => pwmgen.0.value
+#net spindle-on spindle.0.on => pwmgen.0.enable
+#net spindle-pwm pwmgen.0.pwm => esp32udp.pwm.01
+#setp pwmgen.0.scale 24000
+
+#===========================================
+
+net     coolant-mist   iocontrol.0.coolant-mist   hal_gpio.PIN31-out
+net     coolant-flood   iocontrol.0.coolant-flood   hal_gpio.PIN33-out
+
+
+#===========================================
+
+setp    iocontrol.0.tool-changed                    true
+setp    iocontrol.0.tool-prepared                   true
+
+#setp   esp32udp.pwm.01.freq   2000
+#setp   esp32udp.pwm.01        0.5
+

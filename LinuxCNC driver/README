@@ -1,0 +1,4 @@
+install linuxcnc-uspace-dev
+install build-essential
+
+halcompile --install esp32udp.comp

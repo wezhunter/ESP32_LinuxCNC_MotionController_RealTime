@@ -1,0 +1,334 @@
+/*    This is a component of LinuxCNC for external step generator over Ethernet
+ *    Copyright 2024 Wez Hunter <wez at hunter dot to>
+ *
+ *    version: 20240119
+ *
+ *    This program is free software; you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation; either version 2 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *
+ *    You should have received a copy of the GNU General Public License
+ *    along with this program; if not, write to the Free Software
+ *    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+component esp32udp "ESP32UDP";
+
+pin in  float   #.position_cmd[4]   = 0.0   "Commanded position in position units";
+pin in  float   #.velocity_cmd[4]   = 0.0   "Commanded velocity in position units/s";
+pin out float   #.position_fb[4]    = 0.0   "Feedback position in position units";
+pin out float   #.velocity_fb[4]    = 0.0   "Feedback velocity in position units/s";
+
+pin in  bit     out.##[6]           = 0     "Digital output";
+pin in  float   pwm.##[6]           = 0.0   "PWM output 0...1";
+pin out bit     in.##[8]            = 0     "Digital inputs";
+
+
+
+pin out bit     ready               = 0     "Module state";
+pin in  bit     enable              = 0     "Module enable";
+pin out bit     connected           = 0     "Net comms connected";
+pin out s32     packets_lost_tx     = 0     "Lost packets TX";
+pin out s32     last_pkt_rx_time_ms  = 0     "Last Packet RX Time ms";
+pin out s32     udp_seq_number      = 0     "UDP Seqence Number";
+pin out s32     send_pkt      = 0     "UDP Send Pkt";
+
+param   rw  u32     #.dirsetup[4]   = 1     "Minimum time from a direction change to the beginning of the next step pulse in ns";
+param   rw  float   #.scale[4]      = 1.0   "Steps per position unit";
+param   rw  float   #.accel[4]      = 1.0   "Acceleration in position units/s2";
+param   rw  u32     pwm.##.freq[6]  = 0     "PWM frequency in Hz 0...65000";
+param   rw  u32     num_motors      = 3     "Number of Motors";
+
+
+
+
+/*-------------------------------------*/
+
+option singleton;
+option extra_setup;
+option extra_cleanup;
+
+function _;
+function udp_receive;
+
+license "GPL"; // indicates GPL v2 or later
+;;
+
+/*-------------------------------------*/
+
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include <fcntl.h>
+
+//#define MAX_STEPPER   3
+
+struct FB {
+    uint8_t control;
+    uint8_t io;
+    int32_t pos[6];
+    int32_t   vel[6];
+    int32_t udpseqnumber;
+} fb = { 0 };
+
+struct CMD {
+    uint8_t control;
+    uint8_t io;
+    uint16_t pwm[6];
+    int32_t pos[6];
+    int32_t vel[6];
+} cmd = { 0 };
+
+struct CMD prev_cmd = { 0 };
+struct CMD cache_cmd = { 0 };
+
+
+#define CTRL_DIRSETUP 0b00000001
+#define CTRL_ACCEL    0b00000010
+#define CTRL_RESTORE  0b00001000
+#define CTRL_PWMFREQ  0b00000100
+#define CTRL_READY    0b01000000
+#define CTRL_ENABLE   0b10000000
+
+#define IO_00 0b00000001
+#define IO_01 0b00000010
+#define IO_02 0b00000100
+#define IO_03 0b00001000
+#define IO_04 0b00010000
+#define IO_05 0b00100000
+#define IO_06 0b01000000
+#define IO_07 0b10000000
+
+#define BUFSIZE 160 // Set to 160 for MAX_STEPPER of 6 ESP32 QUEUES_RMT structs
+#define SEND_TIMEOUT_US 100
+#define RECV_TIMEOUT_US 100
+
+#define REMOTE_IP "192.168.111.1"  // ESP32 Ethernet IP Address is here
+#define REMOTE_UDP_PORT 58427      // ESP32 UDP Server Port
+#define LOCAL_UDP_PORT 58428       // Local UDP Server Port
+
+int sockfd, n, rx, sockrxfd;
+struct sockaddr_in server;
+struct timeval timeout;
+struct timeval timeoutrx;
+char txbuf[BUFSIZE];
+char rxbuf[BUFSIZE];
+
+bool do_state_restore = false;
+
+int prev_enable_status;
+int last_pkt_counter;
+/*-------------------------------------*/
+
+EXTRA_SETUP()
+{
+    rtapi_set_msg_level(RTAPI_MSG_WARN);
+    sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    sockrxfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    server.sin_family = AF_INET;
+    server.sin_port = htons(REMOTE_UDP_PORT);
+    server.sin_addr.s_addr = inet_addr(REMOTE_IP);
+    timeout.tv_sec = 0;
+    timeout.tv_usec = RECV_TIMEOUT_US;
+    timeoutrx.tv_sec = 0;
+    timeoutrx.tv_usec = 100;
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
+    setsockopt(sockrxfd, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeoutrx, sizeof(timeoutrx));
+    timeout.tv_usec = SEND_TIMEOUT_US;
+    setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout));
+    recv(sockfd, rxbuf, sizeof(rxbuf), 0); // dummy read, to empty buffer
+    recv(sockrxfd, rxbuf, sizeof(rxbuf), 0); // dummy read, to empty buffer
+
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(LOCAL_UDP_PORT);
+    
+    if(fcntl(sockrxfd, F_SETFL, fcntl(sockrxfd, F_GETFL) | O_NONBLOCK) < 0) {
+        rtapi_print_msg(RTAPI_MSG_ERR, "RX Socket failed to set to nonblocking mode\n");
+        return 1;
+    }
+
+    if (bind(sockrxfd, (struct sockaddr *)&address, sizeof(address)) < 0)
+    {
+        rtapi_print_msg(RTAPI_MSG_ERR, "RX Socket failed to bind on port %d\n", LOCAL_UDP_PORT);
+        return 1;
+    }
+    last_pkt_counter = 0;
+
+    prev_enable_status = 0;
+    return 0;
+}
+
+EXTRA_CLEANUP()
+{
+    cmd.control = 0;
+    memcpy(&txbuf, &cmd, sizeof(cmd));
+    uint8_t chk = 71;
+    for (int i = 0; i < sizeof(cmd); i++) chk ^= txbuf[i];
+    txbuf[sizeof(cmd)] = chk;
+    sendto(sockfd, txbuf, sizeof(cmd) + 1, 0, &server, sizeof(server));
+    sleep(0.5);
+    close(sockfd);
+    close(sockrxfd);
+}
+
+FUNCTION(udp_receive)
+{
+    
+    rx = recv(sockrxfd, rxbuf, sizeof(fb), 0);
+    if (rx < 0) {
+        last_pkt_rx_time_ms++;
+        if (last_pkt_rx_time_ms > 2000 && connected && ready) {
+            rtapi_print_msg(RTAPI_MSG_WARN, "Timeout receiving UPD pkt\n");  
+            ready = 0; 
+            connected = 0; 
+        }
+    } else {
+        last_pkt_rx_time_ms = 0;
+        
+        memcpy(&fb, &rxbuf, sizeof(fb));
+        for (int i = 0; i < num_motors; i++) {
+            _position_fb(i) = fb.pos[i] / (float)_scale(i);
+            _velocity_fb(i) = (float)(fb.vel[i]/1000) / (float)_scale(i);
+            if (cmd.pos[i] != fb.pos[i]) {
+                send_pkt++;
+            }
+        }
+    
+
+        memcpy(&prev_cmd, &cmd, sizeof(cmd));
+
+        in(0) = fb.io & IO_00;
+        in(1) = fb.io & IO_01;
+        in(2) = fb.io & IO_02;
+        in(3) = fb.io & IO_03;
+        in(4) = fb.io & IO_04;
+        in(5) = fb.io & IO_05;
+        in(6) = fb.io & IO_06;
+        in(7) = fb.io & IO_07;
+        ready = fb.control & CTRL_READY;
+        udp_seq_number = fb.udpseqnumber;
+        connected = 1;
+        send_pkt--;
+    }
+
+}
+
+FUNCTION(_)
+{
+    if (send_pkt < 0) {
+        send_pkt = 0;    
+    }
+    if (send_pkt > 100) {
+        send_pkt = 0;
+    }
+
+    last_pkt_counter++;
+
+    if (last_pkt_counter > 1000) {
+        last_pkt_counter = 0;
+        send_pkt++;
+    }
+
+    if (prev_enable_status != enable) {
+        rtapi_print_msg(RTAPI_MSG_WARN, "Resetting cmd & fb POS\n");
+        memcpy(&cache_cmd, &cmd, sizeof(cmd));
+        do_state_restore = true;
+        last_pkt_rx_time_ms = 0;
+        packets_lost_tx = 0;
+        send_pkt++;
+        prev_enable_status = enable;
+    }
+
+    if (enable) {
+        cmd.control |= CTRL_ENABLE;
+    }
+    else { 
+        cmd.control = 0;
+        
+    }
+
+    if (ready) {
+        cmd.control |= CTRL_READY;
+        
+        for (int i = 0; i < num_motors; i++) {
+            cmd.vel[i] = (int32_t)((float)_velocity_cmd(i) * (float)_scale(i));
+            cmd.pos[i] = (float)_position_cmd(i) * (float)_scale(i);
+            if (cmd.pos[i] != prev_cmd.pos[i] || cmd.vel[i] != prev_cmd.vel[i]) {
+                send_pkt++;
+            } 
+        }
+
+        if (out(0)) cmd.io = IO_00;
+        else cmd.io = 0;
+        if (out(1)) cmd.io |= IO_01;
+        if (out(2)) cmd.io |= IO_02;
+        if (out(3)) cmd.io |= IO_03;
+        if (out(4)) cmd.io |= IO_04;
+        if (out(5)) cmd.io |= IO_05;
+        
+        if (cmd.io != prev_cmd.io)
+            send_pkt++;
+
+        for (int i = 0; i < 6; i++) {
+            cmd.pwm[i] = (float)pwm(i) * 1023.0f;
+            if (cmd.pwm[i] > 1023) cmd.pwm[i] = 1023;
+            if (cmd.pwm[i] != prev_cmd.pwm[i])
+                send_pkt++;
+        }
+
+    } else {
+        if (!(fb.control & CTRL_DIRSETUP)) {
+            cmd.control = CTRL_DIRSETUP;
+            for (int i = 0; i < num_motors; i++) 
+            { 
+                cmd.pos[i] = _dirsetup(i); 
+            }
+        } else if (!(fb.control & CTRL_ACCEL)) {
+            cmd.control = CTRL_ACCEL;
+            for (int i = 0; i < num_motors; i++) 
+            { 
+                cmd.pos[i] = (float)_accel(i) * (float)_scale(i); 
+            }
+        } else if (!(fb.control & CTRL_RESTORE)) {
+            cmd.control = CTRL_RESTORE;
+            if (do_state_restore) {
+                memcpy(&cmd, &cache_cmd, sizeof(cmd));
+                
+                do_state_restore = false;
+            }
+            
+        } else if (!(fb.control & CTRL_PWMFREQ)) {
+            cmd.control = CTRL_PWMFREQ;
+            for (int i = 0; i < 6; i++) 
+            { 
+                cmd.pwm[i] = pwm_freq(i); 
+            }
+        }
+        send_pkt++;
+    }
+    memcpy(&txbuf, &cmd, sizeof(cmd));
+    uint8_t chk = 71;
+    for (int i = 0; i < sizeof(cmd); i++) chk ^= txbuf[i];
+    txbuf[sizeof(cmd)] = chk;
+
+    if (send_pkt > 0) {
+        n = sendto(sockfd, txbuf, sizeof(cmd) + 1, 0, &server, sizeof(server));
+        if (n < 0) { 
+            ready = 0; 
+            connected = 0; 
+            rtapi_print_msg(RTAPI_MSG_WARN, "Timeout sending UPD pkt\n");    
+            packets_lost_tx++;
+        }
+    }
+
+}
