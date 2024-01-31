@@ -1,5 +1,5 @@
 # ESP32UDP
-Hardware based external step generator and IO interface for LinuxCNC over native RMII Ethernet on a dual core ESP32 for numerous boards.<br>
+Hardware based external step generator and IO interface for LinuxCNC over native RMII Ethernet on a dual core ESP32 for several boards.<br>
 
 The hardware is connected to LinuxCNC over Ethernet. The controller operates in position mode at low speed and at higher speeds in velocity mode.<br>
 
@@ -9,16 +9,16 @@ The hardware is connected to LinuxCNC over Ethernet. The controller operates in 
 * **ENABLE** **STEP** and **DIR** signals for up-to 6 axes (if careful planning with GPIO pins)
 * 7 input pins
 * 6 output pins, any can be pwm signal
-* Step frequency up to 200 kHz total using RMT peripheral. Can drive 6 motors reliably, smoothly and accurately across all accreleration profiles
-* Extensibe: Spare core #1 for Arduino tasks or extra libraries
+* Step frequency up to 200 kHz total using RMT peripheral. Can drive 6 motors reliably, smoothly and accurately across all acceleration profiles
+* Extensible: Spare core #1 for Arduino tasks or extra libraries
 * Core 0 handles UDP Server & Client, Commands, Motor step generation, position and feedback control
-* WiFI working with OTA updates and Telnet server for remote monitoring. OTA firmware updates can be performed via Ethernet too to speed up development iterations if using a Virual LinuxCNC instance
+* WiFI working with OTA updates and Telnet server for remote monitoring. OTA firmware updates can be performed via Ethernet too to speed up development iterations if using a Virtual LinuxCNC instance
 * Serial and Telnet interface with stepper and input status stats
 * Detailed logging output on serial interface (to be improved and easier to visualise any board setup or config errors later)
 * Handles most setup problems and reports on the Serial console if there are any problems
 * Event driven real-time UDP networking protocol with sleeping when idle and error handling freeing resources on ESP32
 * Inputs pin status and triggers are handled by high speed interrupt handler and reading of GPIO input registers
-* ESP32 Pulse Counter perihperal is unused allowing for Servo Encoder feedback connection in future. Motor position reporting back to LinuxCNC PID controller should be straight forward
+* ESP32 Pulse Counter peripheral is unused allowing for Servo Encoder feedback connection in future. Motor position reporting back to LinuxCNC PID controller should be straight forward
 * Multiple board support with native RMII ethernet modules. WT32-ETH01, Olimex ESP32-EVB, ESP32-Gateway, ESP32-POE - or any other ESP32 with any of the supports LAN Phys will work
 * Something more somewhere but will continue to evolve over time
 * Future scope - ESP32-S2/S3 4 Axis USB based networking (USB RNDIS/ECM Ethernet) so no more Ethernet adapters or Phys. A single $5 ESP32-S2 or S3 module with USB-C will handle all LinuxCNC real-time comms and high-speed and accurate motor driving (yes, it is possible!)
@@ -111,5 +111,5 @@ If the esp32udp.pwm.xx.freq parameter is set to 0, the esp32udp.out.xx pin works
 If the value of the esp32udp.pwm.xx.freq parameter is not 0, the esp32udp.out.xx pin does not work and the esp32udp.pwm.xx pin does.<br>
 
 ### Credits
-Credit goes to Juhász Zoltán for his original great work and concept for the HAL2UDP components using W5500 SPI ethernet and software based Step generation on ESP32.
+Credit goes to Juhász Zoltán for his original great work and concept for the HAL2UDP components using W5500 SPI ethernet and software-based Step generation on ESP32.
 This project was originally based on it but the firmware source hardly resembles any of it now. GPL licensing is given in the source header.
