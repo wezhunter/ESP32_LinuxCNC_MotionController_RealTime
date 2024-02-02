@@ -1,3 +1,4 @@
+#pragma once
 #ifdef ARDUINO_ESP32_MKS_DLC32
 
 /*
@@ -42,6 +43,11 @@
 
 
 #    include <stdint.h>
+
+
+
+const int UNDEFINED_PIN    = 255;  // Can be used to show a pin has no i/O assigned
+const int I2S_OUT_PIN_BASE = 128;
 
 /* Assert */
 #    if defined(I2S_OUT_NUM_BITS)

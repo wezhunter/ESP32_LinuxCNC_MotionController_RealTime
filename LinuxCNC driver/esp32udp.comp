@@ -1,7 +1,7 @@
 /*    This is a component of LinuxCNC for external step generator over Ethernet
  *    Copyright 2024 Wez Hunter <wez at hunter dot to>
  *
- *    version: 20240119
+ *    version: 20240202
  *
  *    This program is free software; you can redistribute it and/or modify
  *    it under the terms of the GNU General Public License as published by
@@ -107,13 +107,13 @@ struct CMD cache_cmd = { 0 };
 #define IO_06 0b01000000
 #define IO_07 0b10000000
 
-#define BUFSIZE 160 // Set to 160 for MAX_STEPPER of 6 ESP32 QUEUES_RMT structs
+#define BUFSIZE 160 // Set to 160 to cater for default MAX_STEPPER of ESP32 QUEUES_RMT+QUEUES_MCPWM_PCNT structs (if required)
 #define SEND_TIMEOUT_US 100
 #define RECV_TIMEOUT_US 100
 
-#define REMOTE_IP "192.168.111.1"  // ESP32 Ethernet IP Address is here
-#define REMOTE_UDP_PORT 58427      // ESP32 UDP Server Port
-#define LOCAL_UDP_PORT 58428       // Local UDP Server Port
+#define REMOTE_IP "192.168.111.1"
+#define REMOTE_UDP_PORT 58427
+#define LOCAL_UDP_PORT 58428
 
 int sockfd, n, rx, sockrxfd;
 struct sockaddr_in server;
@@ -187,7 +187,7 @@ FUNCTION(udp_receive)
     rx = recv(sockrxfd, rxbuf, sizeof(fb), 0);
     if (rx < 0) {
         last_pkt_rx_time_ms++;
-        if (last_pkt_rx_time_ms > 2000 && connected && ready) {
+        if (last_pkt_rx_time_ms > 5000 && connected && ready) {
             rtapi_print_msg(RTAPI_MSG_WARN, "Timeout receiving UPD pkt\n");  
             ready = 0; 
             connected = 0; 
@@ -261,7 +261,7 @@ FUNCTION(_)
         cmd.control |= CTRL_READY;
         
         for (int i = 0; i < num_motors; i++) {
-            cmd.vel[i] = (int32_t)((float)_velocity_cmd(i) * (float)_scale(i));
+            cmd.vel[i] = (int32_t)((float)_velocity_cmd(i) * (float)_scale(i))*1000;
             cmd.pos[i] = (float)_position_cmd(i) * (float)_scale(i);
             if (cmd.pos[i] != prev_cmd.pos[i] || cmd.vel[i] != prev_cmd.vel[i]) {
                 send_pkt++;

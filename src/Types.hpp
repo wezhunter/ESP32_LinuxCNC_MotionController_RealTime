@@ -4,10 +4,11 @@
 #include "FastAccelStepper.h"
 #include "AsyncTCP.h"
 
+
 #define DRIVER_RMT 1
 #define UDP_PACKET_BUF_SIZE 70 /* Need to update this if increasing MAX_STEPPER from default of 6 so that cmd and fb structs can be serialised  */
 
-#define UDPRECEIVEPACKET_BIT   (1UL << 0UL) // zero shift for bit0
+#define UDP_RECEIVEPACKET_BIT   (1UL << 0UL) // zero shift for bit0
 
 #define MAX_STEPPER 6
 #define MAX_INPUTS 7
@@ -28,6 +29,17 @@
 #define IO_05 0b00100000
 #define IO_06 0b01000000
 #define IO_07 0b10000000
+
+
+#define AXIS_STATE_STOPPED            0b01111111 // Send to clear all bits
+#define AXIS_STATE_MOVE_REQ           0b00000001 // 1=MOVE 0=STOP
+#define AXIS_STATE_MOVE_REQ_DIR       0b00000010 // 1=FWD 0=REV
+#define AXIS_STATE_MOVE_ACCEL_REQ     0b00001000 // 1=ACCEL 0=DECEL
+#define AXIS_STATE_MOVE_COAST         0b00010000 // 1=AT SPEED 0=Not At Speed
+#define AXIS_STATE_MOVING_DIR         0b00100000 // 1=FWD 0=REV
+#define AXIS_STATE_ACCELERATING       0b01000000 // 1=ACCEL 0=DECEL
+#define AXIS_STATE_COASTING           0b10000000 // 1=AT SPEED 0=NOT AT SPEED
+
 
 struct cmdPacket {
     uint8_t control;
@@ -58,7 +70,7 @@ struct stepper_config_s {
   uint16_t off_delay_ms;
 };
 
-struct inputpin_config_s {
+struct inputPin_Config_s {
   String name;
   uint8_t udp_in_num;
   uint8_t pin_mode;
@@ -70,11 +82,11 @@ struct inputpin_config_s {
 
 void IRAM_ATTR inputPinChangeISR(void* args);
 
-uint8_t telnetClientConnected = 0;
-AsyncClient* telnetClient; // TODO handle multiple telnet client connections for debugging - single one for now
+inline uint8_t telnetClientConnected = 0;
+inline AsyncClient* telnetClient; // TODO handle multiple telnet client connections for debugging - single one for now
 const char ctrlz_bytes[5] = {'\xff','\xed','\xff','\xfd','\x06'}; // CTRL+Z keypress bytes for linux telnet client so client can disconnect easily
 
-size_t logMessage(const char *format, ...) {
+inline size_t logMessage(const char *format, ...) {
     va_list arg;
     va_start(arg, format);
     char temp[64];
@@ -100,11 +112,13 @@ size_t logMessage(const char *format, ...) {
     return len;  
 }
 
-void telnetDisconnectAllClients();
-void onTelnetClient(void *s, AsyncClient* c);
-void onTelnetClientDisconnected(void *s, AsyncClient* c);
-void onTelnetClientData(void *s, AsyncClient* c, void *buf, size_t len);
+inline void debugAxisState(uint8_t currState);
+inline void ARDUINO_ISR_ATTR updateAxisState(uint8_t axisNum, uint8_t bit, bool new_value );
+inline void telnetDisconnectAllClients();
+inline void onTelnetClient(void *s, AsyncClient* c);
+inline void onTelnetClientDisconnected(void *s, AsyncClient* c);
+inline void onTelnetClientData(void *s, AsyncClient* c, void *buf, size_t len);
 
-void otaUpdateStart();
-void otaUpdateEnd();
-void otaProgress(unsigned int progress, unsigned int total);
+inline void otaUpdateStart();
+inline void otaUpdateEnd();
+inline void otaProgress(unsigned int progress, unsigned int total);

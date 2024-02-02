@@ -172,9 +172,9 @@ net     probe-in        probe.debounce.out          	motion.probe-input
 
 #===========================================
 
-#net     x-home-pre      esp32udp.in.05                 home.x.debounce.in
-#net     y-home-pre      esp32udp.in.06                 home.y.debounce.in
-#net     z-home-pre      esp32udp.in.04                 home.z.debounce.in
+net     x-home-pre      esp32udp.in.05                 home.x.debounce.in
+net     y-home-pre      esp32udp.in.06                 home.y.debounce.in
+net     z-home-pre      esp32udp.in.04                 home.z.debounce.in
 
 net     x-home          home.x.debounce.out         	joint.0.home-sw-in
 net     y-home          home.y.debounce.out         	joint.1.home-sw-in

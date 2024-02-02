@@ -1,5 +1,5 @@
 /*    External step generator and IO interface for LinuxCNC over Ethernet
- *    with dual-core ESP32 and built-in Ethernet RMIi PHY LAN8270 or SPI Ethernet W5500 modules (WIP)
+ *    with dual-core ESP32 and built-in Ethernet RMIi PHY LAN8270 or SPI Ethernet W5500 modules
  *
  *    Copyright 2024 Wez Hunter <wez at hunter.to>
  *    Copyright 2022 Juhász Zoltán <juhasz.zoltan at freemail dot hu> (Original HAL2UDP project that this was based on but firmware no longer resembles much of it)
@@ -25,7 +25,7 @@
  *
  *    ESP32-WROOM or WROVER modules - Two Cores 240Mhz each. 
  *    8 channel RMT peripheral so can drive 8 stepper motors with RMT peripheral hardware up-to 200khz total with native IO. 
- *    The MCPWM or PCNT (Pulse Counter) hardware periperals are NOT used therefore leaving them free for hardware pulse counting Servo Encoder tracking later
+ *    The MCPWM or PCNT (Pulse Counter) hardware peripherals are NOT used therefore leaving them free for hardware pulse counting Servo Encoder tracking later
  *    https://github.com/gin66/FastAccelStepper/tree/master?tab=readme-ov-file#overview
  *    https://github.com/gin66/FastAccelStepper/tree/master?tab=readme-ov-file#esp32-2
  *    
@@ -38,10 +38,16 @@
  *
  */
 
+
 #include <Arduino.h>
 #include "FastAccelStepper.h"
-#include <Config.h>
-#include <Types.h>
+#include "Config.h"
+#include "Types.hpp"
+
+#ifdef USE_I2S_OUT
+    #include "Pins.h"
+    #include "I2SOut.h"
+#endif
 
 #include <WiFi.h>        // For connecting ESP32 to WiFi
 #include <ArduinoOTA.h>  // For enabling over-the-air updates via network either WiFi or Ethernet
@@ -49,6 +55,7 @@
 #include <esp_timer.h>
 #include "soc/rtc_wdt.h"
 #include <esp_task_wdt.h>
+#include "esp32-hal-log.h"
 
 #ifdef ESP32_RMII_ETHERNET
     #include <ETH.h>    
@@ -60,19 +67,19 @@
     #include "lwip/init.h"
     #include "lwip/timeouts.h"
     #include "lwip/ethip6.h"
-#elif defined(ESP32_SPI_ETHERNET) // TODO - WIP W5500 support
+#elif defined(ESP32_SPI_ETHERNET) 
+    #include <AsyncUDP_ESP32_Ethernet.h>
 #endif
-#ifdef ARDUINO_ESP32_MKS_DLC32
-    #include <Pins.h>
-    #include <I2SOut.h>
-#endif
+
+
 
 /*==================================================================*/
 FastAccelStepperEngine stepperEngine = FastAccelStepperEngine();
 hw_timer_t * timerServoCmds = NULL;
 
 EventGroupHandle_t  xEventUdpReceiveGroup;
-xQueueHandle inputInteruptQueue;
+xQueueHandle IRAM_ATTR inputInterruptQueue;
+xQueueHandle IRAM_ATTR axisStateInterruptQueue;
 /*==================================================================*/
 bool eth_connected = false;
 
@@ -106,14 +113,14 @@ char spinChar = '|';
     
 #elif defined(ESP32_SPI_ETHERNET)
     //#include "AsyncUDP.h"
-    #include <AsyncUDP_ESP32_Ethernet.h>
     //EthernetUDP Udp; // An EthernetUDP instance to let us send and receive packets over UDP
     AsyncUDP udpClient;
     AsyncUDP udpServer;
+    AsyncServer telnetServer(23);
 #endif
 
 
-volatile uint32_t prev_vel[MAX_STEPPER] = {0};
+
 volatile uint32_t udp_seq_num = 0;
 
 uint8_t inputPinInterruptFired[MAX_INPUTS] = { 0 };
@@ -129,7 +136,6 @@ volatile unsigned long ul_dirSetup[MAX_STEPPER] = { 1000 };
 FastAccelStepper *stepper[CONF_NUM_STEPPERS];
 
 volatile uint8_t prevRampState[MAX_STEPPER] = {0}; // Reserved for future use
-volatile double pos_offset = 0.0000579; // This is a hack for now. See notes RE ferror scaling at ServoCmdIsr below
 
 volatile bool runLoops = false;
 
@@ -143,6 +149,11 @@ uint8_t prev_ctrl_ready = false;
 volatile bool motorsSetup = false;
 volatile bool machineEnabled = false;
 volatile bool motorsMoving = false;
+volatile bool manualMove = false;
+
+uint8_t axisState[MAX_STEPPER] = {0};
+volatile uint8_t prev_axisState[MAX_STEPPER] = {0};
+
 
 volatile int8_t sendUdpPacket = 0;
 volatile int8_t udpRxPacket = 0;
@@ -273,12 +284,18 @@ void IRAM_ATTR outputHandler()
 void IRAM_ATTR inputHandler()
 {
     for (uint8_t i = 0; i < MAX_INPUTS; i++) {
-        const struct inputpin_config_s *pin_config = &inputPinsConfig[i];
-        if (i == 0)
-            (REG_READ(pin_config->register_address) & pin_config->register_bit) ? fb.io = pin_config->fb_input_mask : fb.io = 0;
-        else {
-            if (REG_READ(pin_config->register_address) & pin_config->register_bit)
-                fb.io |= pin_config->fb_input_mask;
+        const struct inputPin_Config_s *pin_config = &inputPinsConfig[i];
+        if (pin_config->gpio_number != GPIO_NUM_NC) {
+            if (i == 0)
+                (REG_READ(pin_config->register_address) & pin_config->register_bit) ? fb.io = pin_config->fb_input_mask : fb.io = 0;
+
+            else {                
+                if (REG_READ(pin_config->register_address) & pin_config->register_bit)
+                    fb.io |= pin_config->fb_input_mask;
+            }
+        } else { // If pin not connected
+            if (i == 0) // if pinindex is 0
+                fb.io = 0; // set initial fb.io value
         }
     }
 }
@@ -404,7 +421,6 @@ void IRAM_ATTR commandHandler()
 void WiFiEvent(WiFiEvent_t event) 
 {
     switch (event) {
-#ifdef ESP32_RMII_ETHERNET
     case ARDUINO_EVENT_WIFI_STA_GOT_IP:
         logMessage("WiFi IP: %s\r\n", WiFi.localIP().toString().c_str());
         break; 
@@ -436,7 +452,6 @@ void WiFiEvent(WiFiEvent_t event)
         logMessage("Ethernet Stopped\r\n");
         eth_connected = false;
         break;
-#endif
     default:
         break;
     }
@@ -477,11 +492,11 @@ void onUDPRxPacketCallBack(AsyncUDPPacket packet)
 
         if (packet.data()[sizeof(cmd)] == chk) {
             memcpy(&cmd, packet.data(), sizeof(cmd));
-            xEventGroupSetBits(xEventUdpReceiveGroup, UDPRECEIVEPACKET_BIT);
+            xEventGroupSetBits(xEventUdpReceiveGroup, UDP_RECEIVEPACKET_BIT);
         } else {
             udpPacketRxErrors++;
             if (udpPacketRxErrors > 1000) {
-                logMessage("ERROR: Excessive UDP RX errors!. Size: %d, RxLen:%d\r\n", sizeof(cmd), packet.length());
+                logMessage("**ERROR**: Excessive UDP RX errors!. Size: %d, RxLen:%d\r\n", sizeof(cmd), packet.length());
                 udpPacketRxErrors = 0;
             }
             return;
@@ -510,7 +525,7 @@ void IRAM_ATTR loop_Core0_UDPSendTask(void* parameter)
                 break;
         }
         
-        vTaskDelay(1);
+        vTaskDelay(1 / portTICK_PERIOD_MS);
     }
     logMessage("Exiting loop_Core0_UDPSendTask\r\n");
     vTaskDelete(NULL);
@@ -520,30 +535,29 @@ void IRAM_ATTR loop_Core0_UDPSendTask(void* parameter)
 void IRAM_ATTR inputPinChangeISR(void *args) 
 {
     int inputIndex = (int)args;
-    xQueueSendFromISR(inputInteruptQueue, &inputIndex, NULL);
+    xQueueSendFromISR(inputInterruptQueue, &inputIndex, NULL);
 }
 
 void loop_Core0_InputPinHandlerTask(void * paramter) 
 {
     logMessage("loop_Core0_InputPinHandlerTask running...\r\n");
-    int inputIndex;
+    uint8_t inputIndex;
     while (runLoops) {
-        if (xQueueReceive(inputInteruptQueue, &inputIndex, portMAX_DELAY))
+        if (xQueueReceive(inputInterruptQueue, &inputIndex, portMAX_DELAY))
         {
-            const struct inputpin_config_s *pin_config = &inputPinsConfig[inputIndex];
+            const struct inputPin_Config_s *pin_config = &inputPinsConfig[inputIndex];
 
-            /* Updates the fb.io struct with the GPIO register state from the inputpin_config sturct data in Config.h */
+            /* Updates the fb.io struct with the GPIO register state from the inputPin_config struct data in Config.h */
             (REG_READ(pin_config->register_address) & pin_config->register_bit) ? fb.io |= pin_config->fb_input_mask : fb.io &= ~pin_config->fb_input_mask;
             inputPinInterruptFired[inputIndex]++;
 
             if (inputPinInterruptFired[inputIndex] >= 150) {
-                logMessage("WARNING: Excessive input changes. Index: %d, GPIO: %d, Name: '%s'. Changed %d times. Resetting counter\r\n", inputIndex, pin_config->gpio_number, pin_config->name, inputPinInterruptFired[inputIndex]);
+                //logMessage("WARNING: Excessive input changes. Index: %d, GPIO: %d, Name: '%s'. Changed %d times. Resetting counter\r\n", inputIndex, pin_config->gpio_number, pin_config->name, inputPinInterruptFired[inputIndex]);
                 inputPinInterruptFired[inputIndex] = 0;
             }
             
-            if (!motorsMoving) // Only forcibly send a udp feedback pkt if motors aren't moving. When they are the feedback is done in realtime
+            if (!motorsMoving) // Only send a udp feedback pkt if motors are stationary. When moving the feedback is done in realtime as per the fb.io struct
                 sendUdpPacket++;
-            
         }
     }
     logMessage("Exiting loop_Core0_InputPinHandlerTask\r\n");
@@ -558,9 +572,8 @@ void IRAM_ATTR loop_Core0_CommandHandlerTask(void* parameter)
 
     esp_task_wdt_delete(NULL); /* Disable the Task Watchdog (not core WD) for this task as the servo thread in FastAccelStepper can interfere with the it. No impact as the UDP packet based watchdog with catch any, if any, hung conditions */
 
-    const EventBits_t xBitsToWaitFor  = (UDPRECEIVEPACKET_BIT);
+    const EventBits_t xBitsToWaitFor  = (UDP_RECEIVEPACKET_BIT);
     EventBits_t xEventGroupValue;
-    const TickType_t xTicksToWait = 50 / portTICK_PERIOD_MS;
     
     while(runLoops) {
         if (machineEnabled) { /* Handle UDP packet watchdog first */
@@ -576,22 +589,22 @@ void IRAM_ATTR loop_Core0_CommandHandlerTask(void* parameter)
             ul_udptxrx_watchdog = millis();
         }
         /* Waits 50ms for an event from UDP packet from onUDPRxPacketCallBack(). Delay is only a few ticks if RX multiple packets */
-        xEventGroupValue  = xEventGroupWaitBits(xEventUdpReceiveGroup, xBitsToWaitFor, pdTRUE, pdTRUE, xTicksToWait); 
+        xEventGroupValue  = xEventGroupWaitBits(xEventUdpReceiveGroup, xBitsToWaitFor, pdTRUE, pdTRUE, portMAX_DELAY); 
 
-        if((xEventGroupValue & UDPRECEIVEPACKET_BIT) !=0) /* If UDP Packet RX bit is set */
+        if((xEventGroupValue & UDP_RECEIVEPACKET_BIT) !=0) /* If UDP Packet RX bit is set */
         {          
             ul_udptxrx_watchdog = millis();
             
-            commandHandler(); /* No need to process inputHandler() as they're interrupt driven and sent asynchronously in realtime on a seperate task */
+            commandHandler(); /* No need to process inputHandler() as they're interrupt driven and sent asynchronously in realtime on a separate task */
             
             if (machineEnabled) {
                 outputHandler();
                 
             } else {
-                vTaskDelay(50 / portTICK_RATE_MS);
-            }           
+                vTaskDelay(50 / portTICK_PERIOD_MS);
+            }
         }
-        xEventGroupClearBits(xEventUdpReceiveGroup, UDPRECEIVEPACKET_BIT);
+        xEventGroupClearBits(xEventUdpReceiveGroup, UDP_RECEIVEPACKET_BIT);
         /* No need for a vTaskDelay or yield context switch here since the event group delay above handles it */
     }
 
@@ -604,18 +617,19 @@ void IRAM_ATTR loop_Core0_CommandHandlerTask(void* parameter)
 void loop_Core1_ServoStatsTask(void* parameter) /* No need for IRAM since low speed background task */
 {
     logMessage("loop_Core1_ServoStatsTask running...\r\n");
+    uint8_t axisState;
     while (runLoops) {
         long now_profilestats = millis();
         if (now_profilestats - lastMsg_profilestats > 1000) {
             logMessage("UDP TX PPS: %d, TX Errors: %d, RX Errors: %d\r\n", udp_seq_num, udpPacketTxErrors, udpPacketRxErrors);
             udp_seq_num = 0;
 
-            if (motorsSetup) {
+            if (motorsSetup) {                
                 bool printStepperStats = false;
                 for (int i = 0; i < CONF_NUM_STEPPERS; i++) {
                     if (stepper[i]->isRampGeneratorActive()) {
                         printStepperStats = true;
-                        logMessage("Stepper[%d]: posdiff: %d, freqhz: %d, ", i, (cmd.pos[i] - fb.pos[i]), stepper[i]->getCurrentSpeedInMilliHz()/1000);
+                        logMessage("Stepper[%d]: Pos Diff: %d, Freq Hz: %d, ", i, (cmd.pos[i] - fb.pos[i]), stepper[i]->getCurrentSpeedInMilliHz()/1000);
                     }
                 }
                 if (printStepperStats)
@@ -624,105 +638,175 @@ void loop_Core1_ServoStatsTask(void* parameter) /* No need for IRAM since low sp
             
             lastMsg_profilestats = now_profilestats;
         }
-        
-        vTaskDelay(500 / portTICK_PERIOD_MS); // Task Sleep 100ms
+
+#ifdef DEBUG_AXIS_MOVEMENTS
+        if (xQueueReceive(axisStateInterruptQueue, &axisState, 0))
+        {
+            debugAxisState(axisState);
+        }
+#else
+        vTaskDelay(1000 / portTICK_PERIOD_MS); // Task Sleep 1000ms
+#endif
+
     }
+
     logMessage("Exiting loop_Core1_ServoStatsTask\r\n");
     vTaskDelete(NULL);
 
 }
 
+
 /*==================================================================*/
 
-/* FastAccellStepper Motor API movement position, velocity and speed as well as position and velocity feedback handled in single hardware timer. All non-blocking calls. */
-void IRAM_ATTR ServoMovementCmds_ISR() 
+#ifdef DEBUG_AXIS_MOVEMENTS
+void debugAxisState(uint8_t currState) {
+    bool bitVals[8] = {false};
+
+    for (int i = 0; i < 8; i++)
+    {
+        bitVals[i] = bitRead(currState,i);
+    }
+
+    Serial.printf("\x1b[8G\x1b[K%d%d%d%d%d%d%d%d\r", bitVals[7],bitVals[6],bitVals[5],bitVals[4],bitVals[3],bitVals[2],bitVals[1],bitVals[0]);
+}
+void ARDUINO_ISR_ATTR updateAxisState(uint8_t axisNum, uint8_t bit, bool new_value ) {
+    if (bit == AXIS_STATE_STOPPED && new_value == 1)
+    {
+        axisState[axisNum] = 0;
+        xQueueSendFromISR(axisStateInterruptQueue, &axisState[axisNum], NULL);
+        return;
+    }
+
+    if (new_value)
+        axisState[axisNum] |= (bit);
+    else
+        axisState[axisNum] &= ~(bit);
+    
+    if (axisState[axisNum] != prev_axisState[axisNum]) {
+        xQueueSendFromISR(axisStateInterruptQueue, &axisState[axisNum], NULL);
+        prev_axisState[axisNum] = axisState[axisNum];
+    }    
+}
+#else
+void debugAxisState(uint8_t currState) { }
+void ARDUINO_ISR_ATTR updateAxisState(uint8_t axisNum, uint8_t bit, bool new_value ) { }
+#endif
+
+/* FastAccellStepper Motor API movement position, velocity and speed as well as position and velocity feedback handled in single hardware timer. Non-blocking calls. */
+void ARDUINO_ISR_ATTR ServoMovementCmds_ISR() 
 {
     if (machineEnabled) {
         bool isMovementRunning = false;
         uint8_t moveResult = 0;
+        
+        /* 
+            Uses the FastAccelStepper moveTo() command to ensure that any missed or out of sync UDP packets the position is always handled correctly. 
+            Position is a 32bit integer of motor step position and not pulses and is accurate.
+        */
         for (int i = 0; i < CONF_NUM_STEPPERS; i++) {
-            /* 
-             Uses the FastAccelStepper moveTo() command to ensure that if any missed or out of sync UDP packets the position is always handled correctly. 
-             The position is a 32bit integer of motor step position and not pulses and is accurate.
-             */
-            uint32_t newVel = abs(cmd.vel[i]);
-            if (newVel > prev_vel[i]) { 
-                if (newVel - prev_vel[i] > 500) {
-                    stepper[i]->setSpeedInHz(newVel);
-                    prev_vel[i] = newVel;    
-                }
-            }
-            if (newVel > prev_vel[i]) {
-                prev_vel[i] = 0;
-            }
 
-            moveResult = stepper[i]->moveTo(cmd.pos[i], false); // Important non-blocking call. cmd.pos includes the LinuxCNC scale multipler from HAL component to ensure correct steps per unit
-            if (!motorsMoving) {
-                fb.vel[i] = 0;
-            }
-            
+            const uint32_t newVel = abs(cmd.vel[i]); // Convert cmd.vel to positive int
+            //if (newVel > 0) { // Move is wanted
+                const bool moveDir = cmd.vel[i] > 0 ? 1 : 0; // cmd.vel signed. Negative int reverse. Positive int forwards.
+                const uint32_t currentSpeed = abs(stepper[i]->getCurrentSpeedInMilliHz(true)); // Get realtime speed as abs value (positive int)
+                
+                bool isRampActive = stepper[i]->isRampGeneratorActive();
+                if (!isRampActive && newVel > 0) { // Initial move request ramping (stationary -> moving)
+                    updateAxisState(i, AXIS_STATE_MOVE_REQ, 1);
+                    (moveDir) ? updateAxisState(i, AXIS_STATE_MOVE_REQ_DIR, 1) : updateAxisState(i, AXIS_STATE_MOVE_REQ_DIR, 0);
+                } else if (isRampActive) { // rampRunning so is already moving
+                    const int32_t velDiff = (newVel - currentSpeed); // Calc diff between current and requested vel maintaining signedness in result
+                    /* Cater for UDP latency and non-blocking sequential calls to moveTo below (adding to queue). Avoid top speed clipping by scaling back acceleration by 2%.
+                       As FAS library is running in position mode it catches up during the next move call or during a decel command
+                    */
+                    if (velDiff > 1000) { // Request to speed up from current speed
+                        stepper[i]->setLinearAcceleration(0); // linear accel set to reduce accel jitter from initial ramp up
+                        stepper[i]->setSpeedInMilliHz(newVel / 1.02); // applySpeedAcceleration() not required. Performed during moveTo call
+                        updateAxisState(i, AXIS_STATE_MOVE_ACCEL_REQ, 1);
+                    } else if (velDiff > -1000) { // Request to slow down from current speed
+                        stepper[i]->setLinearAcceleration(0); // faster linear accel to aid any follower catch up issues on next moveTo call if accel is called again later
+                        stepper[i]->setSpeedInMilliHz(newVel / 1.02); // applySpeedAcceleration() not required. Performed during moveTo call
+                        updateAxisState(i, AXIS_STATE_MOVE_ACCEL_REQ, 0);
+                    }
+                } 
+                
+                moveResult = stepper[i]->moveTo(cmd.pos[i], false); // Important non-blocking call. cmd.pos includes LinuxCNC scale multiplier from HAL component to ensure correct steps per unit
+            //}
+
+            /* For safety always check within loop to update a stationary axis regardless if moveTo is called or not */
+
             if (moveResult != MOVE_OK) {
                 /* 
-                    A failed moveTo() call is handled above which sets the feedback position to the FastAccelStepper current motor positon so it will throw a follower error in LinuxCNC if the library fails to generate any step pulses.
+                    A failed moveTo() call will set the feedback position to the FastAccelStepper current motor position so it will throw a follower error in LinuxCNC if the library fails to generate any step pulses.
                     Confirmed & tested realtime position works using a physical machine with units and axis motor scaling set correctly. There are no position lost during any jog steps or MDI commands
+                    The following return codes can be used and added later for completeness sake
+                    MOVE_ERR_NO_DIRECTION_PIN
+                    MOVE_ERR_SPEED_IS_UNDEFINED
+                    MOVE_ERR_ACCELERATION_IS_UNDEFINED
                 */
                 logMessage("Move Error %d for axis %d\r\n", moveResult, 0);
                 fb.pos[i] = stepper[i]->getCurrentPosition();
+                fb.vel[i] = stepper[i]->getCurrentSpeedInMilliHz(false);
 
-            } else {
+            } else { // Moving success
                 /*
                     See https://github.com/gin66/FastAccelStepper/blob/master/extras/doc/FastAccelStepper_API.md#stepper-position
-                    Alternatively, the FastAccelStepper pulse counter could be used to obtain precise steps but appears to be sufficient - 
-                    LinuxCNC FERROR is less than 2.0 for multi-axis stepping at 60khz pulse rate per axis
-                    https://github.com/gin66/FastAccelStepper/blob/master/extras/doc/FastAccelStepper_API.md#esp32-only-free-pulse-counter
-                    getPositionAfterCommandsCompleted() is an alternative API but lags resulting in an ferror of approximately 9.0 at very high speeds however there is little jitter.
-                    Using 
                 */
                 
                 if (stepper[i]->isRampGeneratorActive()) { /* Moving (fastest atomic call to the FAS lib to check if axis is moving) */
                     isMovementRunning = true;
                     
-                    fb.vel[i] = stepper[i]->getCurrentSpeedInMilliHz(); /* feedback vel in millihertz as a signed integer and perform scaling calcs in the HAL component on the host itself */
-                    
-                    /* TODO This is a hack for now but mostly works. Goal is to avoid using a pulse counter and compensate for accel/decel and the position queue to get ferrors down below 0.05  */
-                    fb.pos[i] = stepper[i]->getPositionAfterCommandsCompleted() + (fb.vel[i] * pos_offset); /* Reduces ferrors but may not scale well for other "pulses per unit" so may want removing or adjusting */
+                    fb.pos[i] = stepper[i]->targetPos(); // Set cmd.pos to targetPos since it's where it will be after this movement in queue is done
                     
                     uint8_t rampState = stepper[i]->rampState();
                     
-                    /* Reserved for future use */
                     if (rampState != prevRampState[i]) {
                         if (rampState & RAMP_STATE_ACCELERATE) {
+                            updateAxisState(i, AXIS_STATE_COASTING, 0);
+                            updateAxisState(i, AXIS_STATE_ACCELERATING, 1);
                         } else if ((rampState & RAMP_STATE_COAST)) {
+                            updateAxisState(i, AXIS_STATE_ACCELERATING, 1);
+                            updateAxisState(i, AXIS_STATE_COASTING, 1);
                         } else if ((rampState & RAMP_STATE_DECELERATE)) {
+                            updateAxisState(i, AXIS_STATE_COASTING, 0);
+                            updateAxisState(i, AXIS_STATE_ACCELERATING, 0);
                         }
                         if ((rampState & RAMP_DIRECTION_COUNT_UP)) {
+                            updateAxisState(i, AXIS_STATE_MOVING_DIR, 1);
                         } else if ((rampState & RAMP_DIRECTION_COUNT_DOWN)) {
+                            updateAxisState(i, AXIS_STATE_MOVING_DIR, 0);
                         }
                         prevRampState[i] = rampState;
                     }
-                    /* ====================== */
 
-                
-                } else { /* motor stationary */
+                    fb.vel[i] = stepper[i]->getCurrentSpeedInMilliHz(false)*1.02; // Update feedback velocity using scaled as per the above so it matches what LinuxCNC is expecting for any PID control
+                    
+                } else { /* Motor stationary */
                     fb.pos[i] = stepper[i]->getCurrentPosition();
+                    stepper[i]->setSpeedInMilliHz(0);
+                    stepper[i]->applySpeedAcceleration();
                     fb.vel[i] = 0;
-                    prev_vel[i] = 0; /* Reset to 0 for next move  */
+                    if (axisState[i] != 0) {
+                        updateAxisState(i, AXIS_STATE_STOPPED, 1);
+                    }
                 }
             }
         }
-        motorsMoving = isMovementRunning; /* Set globally - if ANY of the axes are moving */
+        
+        motorsMoving = isMovementRunning; /* Set globally - if ANY axes are moving */
     }
 }
 
 /*==================================================================*/
 /*================= Setup sections =================================*/
 
-void setupInputPin(int inputIndex) /* See Config.h for inputPin board specific configurations */
+void setupInputPin(const int inputIndex) /* See Config.h for inputPin board specific configurations */
 {
-    const struct inputpin_config_s *pin_config = &inputPinsConfig[inputIndex];
+    const struct inputPin_Config_s *pin_config = &inputPinsConfig[inputIndex];
     if (pin_config->gpio_number != GPIO_NUM_NC) {
         logMessage("INPUT[%d]: Configuring: '%s', GPIO: %d\r\n", inputIndex, pin_config->name, pin_config->gpio_number);
         pinMode(pin_config->gpio_number, pin_config->pin_mode);
+        /* Use ESP-IDF gpio isr attachment as it allows to pass an argument to the ISR function (inputIndex)*/
         gpio_set_intr_type(pin_config->gpio_number, GPIO_INTR_ANYEDGE);
         gpio_isr_handler_add(pin_config->gpio_number, inputPinChangeISR, (void *) inputIndex);
     } else {
@@ -733,13 +817,6 @@ void setupInputPin(int inputIndex) /* See Config.h for inputPin board specific c
 void setup_Core0(void* parameter) /* Anything that wants to run on Core0 should be setup in this one-shot task */
 {
     logMessage("setup_Core0()\r\n");
-    logMessage("Configuring inputs...\r\n");
-
-    inputInteruptQueue = xQueueCreate(10, sizeof(int)); 
-    gpio_install_isr_service(0);
-    for (int i = 0; i < MAX_INPUTS; i++) {
-        setupInputPin(i);
-    }
 
     logMessage("Starting Ethernet...\r\n");
 #ifdef ESP32_RMII_ETHERNET
@@ -752,30 +829,19 @@ void setup_Core0(void* parameter) /* Anything that wants to run on Core0 should 
         ETH.begin(0,-1,23,18,ETH_PHY_LAN8720, ETH_CLOCK_GPIO0_IN, false);
     #endif
     ETH.config(my_ip, gw, subnetmask, 0, 0);
+
 #elif defined(ESP32SX_USB_ETHERNET)
-#elif defined(ESP32_SPI_ETHERNET) // TODO Implement W5500 Ethernet SPI
-   
-    // ESP32_W5500_onEvent();
-    // logMessage(ETH.begin( MISO_GPIO, MOSI_GPIO, SCK_GPIO, GPIO_NUM_25, GPIO_NUM_33, SPI_CLOCK_MHZ, ETH_SPI_HOST, mac ));
-    // logMessage(ETH.config(my_ip, gw, subnetmask, 0));
-    // ESP32_W5500_waitForConnect();
-    
-    // Ethernet.init(SPI_CS_PIN);
-    // Ethernet.begin(mac, my_ip, 0, gw); /* start the Ethernet */
-    // if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-    //     logMessage("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
-    //     while (true) {
-    //         delay(1); // do nothing, no point running without Ethernet hardware
-    //         }
-    //     }
-    // if (Ethernet.linkStatus() == LinkOFF) {
-    //     logMessage("Ethernet cable is not connected.");
-    // }
-    // eth_connected = true;
+#elif defined(ESP32_SPI_ETHERNET) 
+
     ESP32_W5500_onEvent();
-    logMessage(ETH.begin( MISO_GPIO, MOSI_GPIO, SCK_GPIO, GPIO_NUM_25, GPIO_NUM_4, SPI_CLOCK_MHZ, ETH_SPI_HOST, mac ));
-    logMessage(ETH.config(my_ip, gw, subnetmask, 0));
-    ESP32_W5500_waitForConnect();
+
+    bool eth_result = ETH.begin( MISO_GPIO, MOSI_GPIO, SCK_GPIO, W5500_CS_PIN, W5500_INT_PIN, SPI_CLOCK_MHZ, ETH_SPI_HOST, (uint8_t*) mac );
+
+    if (!eth_result)
+        logMessage("**ERROR** SPI Ethernet could not be initialised. Please check wiring.\r\n");
+    else
+        ETH.config(my_ip, gw, subnetmask, 0);
+    
 #endif
     delay(200);
 
@@ -787,10 +853,12 @@ void setup_Core0(void* parameter) /* Anything that wants to run on Core0 should 
         logMessage("UDP Server Listening on IP: %s, Port: %d\r\n", my_ip.toString().c_str(), udpServerPort);
         udpServer.onPacket(onUDPRxPacketCallBack);
     } else {
-        logMessage("ERROR: UDP Server failed to listen on IP: %s, Port: %d\r\n", my_ip.toString().c_str(), udpServerPort);
+        logMessage("**ERROR**: UDP Server failed to listen on IP: %s, Port: %d\r\n", my_ip.toString().c_str(), udpServerPort);
     }
 
     xEventUdpReceiveGroup = xEventGroupCreate(); // Create here
+    inputInterruptQueue = xQueueCreate(30, sizeof(uint8_t)); // Create queue here
+    
 
     xTaskCreatePinnedToCore(
         loop_Core0_UDPSendTask, // Task function.
@@ -806,7 +874,7 @@ void setup_Core0(void* parameter) /* Anything that wants to run on Core0 should 
         "loop_Core0_InputPinHandlerTask", // name of task.
         2048, // Stack size of task
         NULL, // parameter of the task
-        6, // priority of the task
+        4, // priority of the task
         NULL, // Task handle to keep track of created task
         0); // pin task to core 0
 
@@ -821,11 +889,18 @@ void setup_Core0(void* parameter) /* Anything that wants to run on Core0 should 
             0); // pin task to core 0
     }
 
-    logMessage("Attching hw timer for ServoMovementCmds ISR\r\n");
+    logMessage("Attaching hw timer for ServoMovementCmds ISR\r\n");
     timerServoCmds = timerBegin(3, 80, true);
     timerAttachInterrupt(timerServoCmds, &ServoMovementCmds_ISR, true);
-    timerAlarmWrite(timerServoCmds, 500, true); // Run faster than the pre-compiled 1khz FreeRTOS tick to ensure no movement command buffering issues
+    timerAlarmWrite(timerServoCmds, 500, true); // Runs faster than the pre-compiled 1khz FreeRTOS tick to ensure no movement command buffering issues
     timerAlarmEnable(timerServoCmds);
+
+    /* Must be done after Ethernet due to SPI interrupt global isr service install */
+    logMessage("Configuring inputs...\r\n");
+    
+    for (uint8_t i = 0; i < MAX_INPUTS; i++) {
+        setupInputPin(i);
+    }
 
     logMessage("Core0 task setup complete\r\n");
     vTaskDelete(NULL);
@@ -838,15 +913,17 @@ void stopProcessing()
     if (runLoops) {
         logMessage("Stop Processing!\r\n");
         runLoops = false;
-        timerDetachInterrupt(timerServoCmds);
         for (int i = 0; i < CONF_NUM_STEPPERS; i++) {
             stepper[i]->forceStop();
             stepper[i]->disableOutputs();
         }
+        timerDetachInterrupt(timerServoCmds);
+        timerStop(timerServoCmds);
+        
         udpClient.close();
         udpServer.close();
         for (int i = 0; i < MAX_INPUTS; i++) {
-            const struct inputpin_config_s *pin_config = &inputPinsConfig[i];
+            const struct inputPin_Config_s *pin_config = &inputPinsConfig[i];
             detachInterrupt(pin_config->gpio_number);
         }
 
@@ -935,6 +1012,16 @@ void onTelnetClient(void *s, AsyncClient* c)
 /*==================================================================*/
 
 ////////////////////////////////////////////////////////
+#ifdef USE_I2S_OUT
+bool fasExternalCallForPin(uint8_t pin, uint8_t value) {
+  // This example returns the previous value of the output.
+  // Consequently, FastAccelStepper needs to call setExternalPin twice
+  // in order to successfully change the output value.
+  bool oldValue = digitalRead(pin);
+  digitalWrite(pin, value);
+  return oldValue;
+}
+#endif
 
 bool setupMotors() 
 {
@@ -948,7 +1035,9 @@ bool setupMotors()
     }
     
     stepperEngine.init(0); /* Use Core0 for stepper engine */
-
+#ifdef USE_I2S_OUT
+    stepperEngine.setExternalCallForPin(fasExternalCallForPin);
+#endif
     for (uint8_t i = 0; i < CONF_NUM_STEPPERS; i++) {
         logMessage("Creating stepper %d\r\n", i);
         FastAccelStepper *s = NULL;
@@ -970,7 +1059,7 @@ bool setupMotors()
                 s->disableOutputs();
                 
             } else {
-                logMessage("ERROR Attaching stepper %d to RMT Driver\r\n", i);
+                logMessage("**ERROR** Attaching stepper %d to RMT Driver\r\n", i);
                 result = false;
             }
         }
@@ -982,6 +1071,11 @@ bool setupMotors()
 
 void setup()
 {
+    //esp_log_level_set("*", ESP_LOG_VERBOSE);
+#ifndef ESP32_SPI_ETHERNET // Only do this once and before everything if not using SPI ethernet. SPI ethernet driver installs this automatically
+    gpio_install_isr_service(0);
+#endif
+    
     Serial.begin(BAUD_RATE);
     Serial.setDebugOutput(true);
 
@@ -989,15 +1083,16 @@ void setup()
     logMessage("APBFreq: %d\r\n", getApbFrequency());
 
     if (!setupMotors()){
-        logMessage("Error setting up motors. Check motor pin mappings, input pin interrupt assignments and output pins do not overlap any motor pins\r\n");
+        logMessage("**Error** setting up motors. Check motor pin mappings, input pin interrupt assignments and output pins do not overlap any motor pins\r\n");
         motorsSetup = false;
     } else {
         motorsSetup = true;
     }
 
-    WiFi.onEvent(WiFiEvent); /* Always map networking event handler regardless if enabled/disabled */
+    WiFi.onEvent(WiFiEvent); /* Always map networking event handler irrespective of WiFi enabled/disabled */
 
-    if (enableWiFi) {
+#ifdef ENABLE_WIFI
+    /* WiFi Enabled */
         logMessage("Connecting to WiFi SSID: %s\r\n", CONF_WIFI_SSID);
         WiFi.begin(CONF_WIFI_SSID, CONF_WIFI_PWD);
         
@@ -1011,27 +1106,32 @@ void setup()
             }
         }
         
-    } else {
-        WiFi.mode(WIFI_AP);
-        WiFi.softAP("NULL","NULL123465",0,1,1);        
-    }
+#else
+    /* WiFi Disabled */
+    WiFi.softAP("NULL","NULL123465",0,1,1); // WiFi needs to be enabled then disabled after Arduino OTA has been setup (lwip etc)
+#endif
     
     ArduinoOTA.begin();  /* Enable OTA Service */
     ArduinoOTA.onStart(otaUpdateStart);
     ArduinoOTA.onEnd(otaUpdateEnd);
     ArduinoOTA.onProgress(otaProgress);
 
-    if (!enableWiFi) { WiFi.disconnect(true,false);} /* shutdown wifi is disabled */
-
+#ifndef ENABLE_WIFI
+    /* WiFi Disabled */
+    WiFi.disconnect(true,false);  
+    WiFi.mode(WIFI_OFF); /* shutdown wifi */
+#endif
            
 
 #ifdef ARDUINO_ESP32_MKS_DLC32
     i2s_out_init();
-    //i2s_out_set_pulse_callback(stepper_pulse_func);   
+    //i2s_out_set_pulse_callback(stepper_pulse_func);
 #endif
+    axisStateInterruptQueue = xQueueCreate(10, sizeof(uint8_t)); // Create queue here
 
     runLoops = true; // Important to ensure background tasks exec in a loop
 
+    
     xTaskCreatePinnedToCore(
         setup_Core0, // Task function.
         "setup_Core0Task", // name of task.
@@ -1068,8 +1168,7 @@ void loop()
     if (runLoops) {
         if (spinProgress == 1) {
             spinChar = '\\';
-        } else if (spinProgress == 2)
-        {        
+        } else if (spinProgress == 2) {        
             spinChar = '|';
         } else if (spinProgress == 3) {
             spinChar = '/';
@@ -1092,16 +1191,34 @@ void loop()
             logMessage("S key pressed\r\n");
             stopProcessing();
         } else if ((char) incomingByte == 'u') {
-            pos_offset = pos_offset + 0.0000001;
-            logMessage("increasing pos offset - new %.7f\r\n", pos_offset);
+            uint32_t accel = stepper[1]->getAcceleration();
+            accel = accel +10000;
+            stepper[1]->setAcceleration(accel);
+            stepper[1]->applySpeedAcceleration();
+            logMessage("Stepper1 +Accel: %d\r\n", accel);
             
         } else if ((char) incomingByte == 'd') {
-            pos_offset = pos_offset - 0.0000001;
-            logMessage("decreasing pos offset - new %.7f\r\n", pos_offset);
+            uint32_t accel = stepper[1]->getAcceleration();
+            accel = accel -10000;
+            stepper[1]->setAcceleration(accel);
+            stepper[1]->applySpeedAcceleration();
+            logMessage("Stepper1 -Accel: %d\r\n", accel);
+
+        } else if ((char) incomingByte == 't') {
+            manualMove = true;
+            stepper[1]->enableOutputs();
+            stepper[1]->setLinearAcceleration(4000);
+            stepper[1]->setSpeedInHz(30000);
+            stepper[1]->applySpeedAcceleration();
+            stepper[1]->move(10000, false);
+
+        } else if ((char) incomingByte == 'y') {
+            manualMove = false;
+            stepper[1]->stopMove();
         }
      }
     
  
-    delay(100);
+    delay(150);
    
 }

@@ -21,7 +21,7 @@
 */
 
 #include "Error.h"
-#include "Config.h"
+
 
 std::map<Error, const char*> ErrorNames = {
     { Error::Ok, "No error" },

@@ -64,10 +64,12 @@
 #include <atomic>
 using namespace std;
 
-#include "Config.h"
-
-#include "Pins.h"
 #include "I2SOut.h"
+#include "Config.h"
+#include "Pins.h"
+
+
+
 
 // Always enable I2S streaming logic
 #define USE_I2S_OUT_STREAM_IMPL
@@ -712,7 +714,7 @@ int IRAM_ATTR i2s_out_reset() {
 }
 
 //
-// Initialize funtion (external function)
+// Initialize function (external function)
 //
 int IRAM_ATTR i2s_out_init(i2s_out_init_t& init_param) {
     if (i2s_out_initialized) {
@@ -956,7 +958,7 @@ int IRAM_ATTR i2s_out_init(i2s_out_init_t& init_param) {
 #    define I2S_OUT_WS GPIO_NUM_17
 #endif
 #ifndef I2S_OUT_BCK
-#    define I2S_OUT_BCK GPIO_NUM_22
+#    define I2S_OUT_BCK GPIO_NUM_16
 #endif
 #ifndef I2S_OUT_DATA
 #    define I2S_OUT_DATA GPIO_NUM_21

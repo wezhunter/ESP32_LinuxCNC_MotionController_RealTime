@@ -1,10 +1,12 @@
-
 #ifdef ARDUINO_ESP32_MKS_DLC32
 
-#include "I2SOut.h"
+#define USE_I2S_OUT
+
+#include <Arduino.h>
 #include "Pins.h"
 #include "Config.h"
-#include <Arduino.h>
+#include "I2SOut.h"
+
 
 String pinName(uint8_t pin) {
     if (pin == UNDEFINED_PIN) {

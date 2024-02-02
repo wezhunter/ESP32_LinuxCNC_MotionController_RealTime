@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include <Types.h>
+#include "Types.hpp"
 
 
 /*==================================================================*/
@@ -13,16 +13,15 @@
 #define CONF_NUM_STEPPERS 3  /* Set how many motors you want to enable and update the stepper_config struct below with the motors you require */
 /* !!!!Important!!!! Do not update the MAX_STEPPER define - this is set to 6 max and the size of the UDP RX/TX buffer is set accordingly to support up-to 6 max */
 
-#define ENABLE_SERIAL_STATS // Runs a Core1 async task that prints stats to serial console
-
-const bool enableWiFi = true;
+//#define ENABLE_SERIAL_STATS // Runs a Core1 async task that prints stats to serial console
+//#define DEBUG_AXIS_MOVEMENTS /* Enables axis movement detailed debugging to aid troubleshooting of motor jitter or noise during prolonged movements  */
+//#define ENABLE_WIFI       /* Enable WIFI and connect to SSID configured below */
 
 #define CONF_WIFI_SSID "YOURSSID"
-
 #define CONF_WIFI_PWD "YOURPASSWORD"
 
 /* Ethernet config and IP Addressing */
-const byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+const uint8_t mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 const IPAddress my_ip(192, 168, 111, 1); /* ESP32 Ethernet IP Address */
 const IPAddress ip_host(192, 168, 111, 2); /* LinuxCNC Ethernet adapter IP must be configured as this */
 const IPAddress gw(192, 168, 111, 254); /* Only useful if you connect ESP32 and LinuxCNC Host on same network segment with a router or another network */
@@ -124,28 +123,28 @@ const uint16_t udpClientPort = 58428; /* UDP Client port the ESP32 connects to. 
   #define A_STEP_PIN                  GPIO_NUM_2
 
 #elif defined(ARDUINO_ESP32_MKS_DLC32)
-
+  #include "Pins.h"
+  #include "I2SOut.h"
+  
   #define OUT_00_PIN    PIN_UNDEFINED
   #define OUT_01_PIN    PIN_UNDEFINED
-  #define OUT_02_PIN    GPIO_NUM_33 // Relay #2
+  #define OUT_02_PIN    PIN_UNDEFINED
   #define OUT_03_PIN    PIN_UNDEFINED
   #define OUT_04_PIN    PIN_UNDEFINED
   #define OUT_05_PIN    PIN_UNDEFINED
 
-  #define _ASYNC_UDP_ESP32_ETHERNET_LOGLEVEL_            4
-  #define _ETHERNET_WEBSERVER_LOGLEVEL_ 4
+  //#define _ASYNC_UDP_ESP32_ETHERNET_LOGLEVEL_            1
+  //#define _ETHERNET_WEBSERVER_LOGLEVEL_ 1
   #define ASYNC_UDP_ESP32_ETHERNET_DEBUG_PORT      Serial
   
   #define ESP32_Ethernet_onEvent            ESP32_W5500_onEvent
   #define ESP32_Ethernet_waitForConnect     ESP32_W5500_waitForConnect
   #define ETH_SPI_HOST                      VSPI_HOST
 
-  #define SPI_CS_PIN 4 // hardcoded in Ethernet_mod/src/utility/w5100.h !!!!!!!!!!!!!!
+  #define W5500_CS_PIN                GPIO_NUM_0 
+  #define W5500_INT_PIN               GPIO_NUM_4 
 
   #define USE_I2S_OUT
-  #define USE_I2S_STEPS
-  
-  #define DEFAULT_STEPPER ST_I2S_STATIC
 
   // I2S pins set
   #define I2S_OUT_BCK                 GPIO_NUM_16
@@ -154,8 +153,9 @@ const uint16_t udpClientPort = 58428; /* UDP Client port the ESP32 connects to. 
       
 
   //#define IIC_SCL                     GPIO_NUM_4
-  #define IIC_SDA                     GPIO_NUM_0
-  #define BEEPER					    I2SO(7)
+  //#define IIC_SDA                     GPIO_NUM_0
+
+  #define BEEPER					            I2SO(7)
 
   // X I2S pin set    
   #define X_DISABLE_PIN               I2SO(0)
@@ -172,12 +172,6 @@ const uint16_t udpClientPort = 58428; /* UDP Client port the ESP32 connects to. 
   #define Z_DIRECTION_PIN             I2SO(4)
   #define Z_STEP_PIN                  GPIO_NUM_27 // LCD_RST EXP1 Pin4
 
- // Adjust exclusive definitions for steppers
-  #ifdef USE_I2S_STEPS
-  #    ifdef USE_RMT_STEPS
-  #        undef USE_RMT_STEPS
-  #    endif
-  #endif
 
 #elif defined(ARDUINO_LOLIN_S2_MINI)
 
@@ -265,7 +259,6 @@ const struct stepper_config_s stepper_config[MAX_STEPPER] = {
       on_delay_us : 2000,
       off_delay_ms : 5
     },
-#ifndef ARDUINO_ESP32_MKS_DLC32 // TODO WIP W5500 SPI Ethernet
     // {
     //   // stepper 4 shall be connected to 
     //   step : C_STEP_PIN,
@@ -278,12 +271,11 @@ const struct stepper_config_s stepper_config[MAX_STEPPER] = {
     //   on_delay_us : 2000,
     //   off_delay_ms : 5
     // }
-#endif
 };
 
 /* INPUT Configs */
 
-const struct inputpin_config_s inputPinsConfig[7] = {
+const struct inputPin_Config_s inputPinsConfig[7] = {
     {
       name : "Unused",
       udp_in_num : 0,
@@ -306,7 +298,11 @@ const struct inputpin_config_s inputPinsConfig[7] = {
       name : "TouchProbe",
       udp_in_num : 2,
       pin_mode : INPUT_PULLDOWN,
+#ifdef ARDUINO_ESP32_MKS_DLC32
+      gpio_number : GPIO_NUM_NC,
+#else
       gpio_number : GPIO_NUM_16,
+#endif
       register_address : GPIO_IN_REG,
       register_bit : BIT16,
       fb_input_mask : IO_02
@@ -315,7 +311,11 @@ const struct inputpin_config_s inputPinsConfig[7] = {
       name : "TLProbe",
       udp_in_num : 3,
       pin_mode : INPUT_PULLDOWN,
+#ifdef ARDUINO_ESP32_MKS_DLC32
+      gpio_number : GPIO_NUM_NC,
+#else
       gpio_number : GPIO_NUM_39,
+#endif
       register_address : GPIO_IN1_REG,
       register_bit : BIT7,
       fb_input_mask : IO_03
