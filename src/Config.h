@@ -13,9 +13,9 @@
 #define CONF_NUM_STEPPERS 3  /* Set how many motors you want to enable and update the stepper_config struct below with the motors you require */
 /* !!!!Important!!!! Do not update the MAX_STEPPER define - this is set to 6 max and the size of the UDP RX/TX buffer is set accordingly to support up-to 6 max */
 
-//#define ENABLE_SERIAL_STATS // Runs a Core1 async task that prints stats to serial console
-//#define DEBUG_AXIS_MOVEMENTS /* Enables axis movement detailed debugging to aid troubleshooting of motor jitter or noise during prolonged movements  */
-//#define ENABLE_WIFI       /* Enable WIFI and connect to SSID configured below */
+#define ENABLE_SERIAL_STATS // Runs a Core1 async task that prints stats to serial console
+#define DEBUG_AXIS_MOVEMENTS /* Enables axis movement detailed debugging to aid troubleshooting of motor jitter or noise during prolonged movements  */
+#define ENABLE_WIFI       /* Enable WIFI and connect to SSID configured below */
 
 #define CONF_WIFI_SSID "YOURSSID"
 #define CONF_WIFI_PWD "YOURPASSWORD"
@@ -33,12 +33,12 @@ const uint16_t udpClientPort = 58428; /* UDP Client port the ESP32 connects to. 
 
 #ifdef ARDUINO_ESP32_EVB
 
-  #define OUT_00_PIN    PIN_UNDEFINED
-  #define OUT_01_PIN    PIN_UNDEFINED
-  #define OUT_02_PIN    GPIO_NUM_33 // Relay #2 (Turns on when machine on)
-  #define OUT_03_PIN    PIN_UNDEFINED
-  #define OUT_04_PIN    PIN_UNDEFINED
-  #define OUT_05_PIN    PIN_UNDEFINED
+  #define OUT_00_PIN    GPIO_NUM_NC
+  #define OUT_01_PIN    GPIO_NUM_NC
+  #define OUT_02_PIN    GPIO_NUM_33  // Relay #2 (Turns on when machine on)
+  #define OUT_03_PIN    GPIO_NUM_NC
+  #define OUT_04_PIN    GPIO_NUM_NC
+  #define OUT_05_PIN    GPIO_NUM_NC
   
   // Axis X GPIO pin set
   #define X_DISABLE_PIN               GPIO_NUM_32 // # Shared Servo motor driver disable pin. Relay #1 on Olimex ESP32 EVB. Relay has 3.3v in common terminal and normally closed output goes to stepper drivers EN terminal
@@ -63,27 +63,34 @@ const uint16_t udpClientPort = 58428; /* UDP Client port the ESP32 connects to. 
 */
 #elif defined(ARDUINO_ESP32_POE)
 
-  #define OUT_00_PIN    PIN_UNDEFINED
-  #define OUT_01_PIN    PIN_UNDEFINED
-  #define OUT_02_PIN    PIN_UNDEFINED // Relay #2
-  #define OUT_03_PIN    PIN_UNDEFINED
-  #define OUT_04_PIN    PIN_UNDEFINED
-  #define OUT_05_PIN    PIN_UNDEFINED
+  /* ETH PHY RESERVED GPIO
+     12, 17, 18, 19, 21, 22, 23, 25, 26
+    INPUT ONLY GPIO
+     34, 35, 36, 39
+     BOOTSTRAP GPIO
+     0, 2
+  */
+  #define OUT_00_PIN    GPIO_NUM_NC
+  #define OUT_01_PIN    GPIO_NUM_NC
+  #define OUT_02_PIN    GPIO_NUM_NC // Relay #2
+  #define OUT_03_PIN    GPIO_NUM_NC
+  #define OUT_04_PIN    GPIO_NUM_NC
+  #define OUT_05_PIN    GPIO_NUM_NC
 
   //#define OUT_02_PIN    GPIO_NUM_33 // Relay #2
 
-  #define X_DISABLE_PIN               GPIO_NUM_32
-  #define X_DIRECTION_PIN             GPIO_NUM_12
-  #define X_STEP_PIN                  GPIO_NUM_17
+  #define X_DISABLE_PIN               GPIO_NUM_13
+  #define X_DIRECTION_PIN             GPIO_NUM_32
+  #define X_STEP_PIN                  GPIO_NUM_33
 
   // Y GPIO pin set
-  #define Y_DISABLE_PIN               GPIO_NUM_32
+  #define Y_DISABLE_PIN               GPIO_NUM_13
   #define Y_DIRECTION_PIN             GPIO_NUM_4
   #define Y_STEP_PIN                  GPIO_NUM_14
       
   // Axis Z GPIO pin set
   //#if defined(USR_Z_MOTOR)
-  #define Z_DISABLE_PIN               GPIO_NUM_32
+  #define Z_DISABLE_PIN               GPIO_NUM_13
   #define Z_DIRECTION_PIN             GPIO_NUM_5
   #define Z_STEP_PIN                  GPIO_NUM_15
 
@@ -95,12 +102,12 @@ const uint16_t udpClientPort = 58428; /* UDP Client port the ESP32 connects to. 
 */
 #elif defined(ARDUINO_ESP32_WT32_ETH01)
 
-  #define OUT_00_PIN    PIN_UNDEFINED
-  #define OUT_01_PIN    PIN_UNDEFINED
+  #define OUT_00_PIN    GPIO_NUM_NC
+  #define OUT_01_PIN    GPIO_NUM_NC
   #define OUT_02_PIN    GPIO_NUM_33 // Relay #2
-  #define OUT_03_PIN    PIN_UNDEFINED
-  #define OUT_04_PIN    PIN_UNDEFINED
-  #define OUT_05_PIN    PIN_UNDEFINED
+  #define OUT_03_PIN    GPIO_NUM_NC
+  #define OUT_04_PIN    GPIO_NUM_NC
+  #define OUT_05_PIN    GPIO_NUM_NC
 
   // Axis X GPIO pin set    
   #define X_DISABLE_PIN               GPIO_NUM_5
@@ -126,12 +133,12 @@ const uint16_t udpClientPort = 58428; /* UDP Client port the ESP32 connects to. 
   #include "Pins.h"
   #include "I2SOut.h"
   
-  #define OUT_00_PIN    PIN_UNDEFINED
-  #define OUT_01_PIN    PIN_UNDEFINED
-  #define OUT_02_PIN    PIN_UNDEFINED
-  #define OUT_03_PIN    PIN_UNDEFINED
-  #define OUT_04_PIN    PIN_UNDEFINED
-  #define OUT_05_PIN    PIN_UNDEFINED
+  #define OUT_00_PIN    GPIO_NUM_NC
+  #define OUT_01_PIN    GPIO_NUM_NC
+  #define OUT_02_PIN    GPIO_NUM_NC
+  #define OUT_03_PIN    GPIO_NUM_NC
+  #define OUT_04_PIN    GPIO_NUM_NC
+  #define OUT_05_PIN    GPIO_NUM_NC
 
   //#define _ASYNC_UDP_ESP32_ETHERNET_LOGLEVEL_            1
   //#define _ETHERNET_WEBSERVER_LOGLEVEL_ 1
@@ -175,12 +182,12 @@ const uint16_t udpClientPort = 58428; /* UDP Client port the ESP32 connects to. 
 
 #elif defined(ARDUINO_LOLIN_S2_MINI)
 
-  #define OUT_00_PIN    PIN_UNDEFINED
-  #define OUT_01_PIN    PIN_UNDEFINED
+  #define OUT_00_PIN    GPIO_NUM_NC
+  #define OUT_01_PIN    GPIO_NUM_NC
   #define OUT_02_PIN    GPIO_NUM_33 // Relay #2
-  #define OUT_03_PIN    PIN_UNDEFINED
-  #define OUT_04_PIN    PIN_UNDEFINED
-  #define OUT_05_PIN    PIN_UNDEFINED
+  #define OUT_03_PIN    GPIO_NUM_NC
+  #define OUT_04_PIN    GPIO_NUM_NC
+  #define OUT_05_PIN    GPIO_NUM_NC
 
   // Axis X GPIO pin set
   #define X_DISABLE_PIN               GPIO_NUM_5
@@ -219,7 +226,7 @@ const struct stepper_config_s stepper_config[MAX_STEPPER] = {
       enable_high_active : PIN_UNDEFINED,
 #endif
       direction : X_DIRECTION_PIN,
-      dir_change_delay : 600,
+      dir_change_delay : 1000,
       direction_high_count_up : true,
       auto_enable : false,
       on_delay_us : 5000,
@@ -236,7 +243,7 @@ const struct stepper_config_s stepper_config[MAX_STEPPER] = {
       enable_high_active : PIN_UNDEFINED,
 #endif
       direction : Y_DIRECTION_PIN,
-      dir_change_delay : 600,
+      dir_change_delay : 1000,
       direction_high_count_up : true,
       auto_enable : false,
       on_delay_us : 2000,
@@ -253,7 +260,7 @@ const struct stepper_config_s stepper_config[MAX_STEPPER] = {
       enable_high_active : PIN_UNDEFINED,
 #endif
       direction : Z_DIRECTION_PIN,
-      dir_change_delay : 600,
+      dir_change_delay : 1000,
       direction_high_count_up : true,
       auto_enable : false,
       on_delay_us : 2000,
@@ -298,10 +305,10 @@ const struct inputPin_Config_s inputPinsConfig[7] = {
       name : "TouchProbe",
       udp_in_num : 2,
       pin_mode : INPUT_PULLDOWN,
-#ifdef ARDUINO_ESP32_MKS_DLC32
-      gpio_number : GPIO_NUM_NC,
-#else
+#ifdef ARDUINO_ESP32_EVB
       gpio_number : GPIO_NUM_16,
+#else
+      gpio_number : GPIO_NUM_NC,
 #endif
       register_address : GPIO_IN_REG,
       register_bit : BIT16,
@@ -311,10 +318,10 @@ const struct inputPin_Config_s inputPinsConfig[7] = {
       name : "TLProbe",
       udp_in_num : 3,
       pin_mode : INPUT_PULLDOWN,
-#ifdef ARDUINO_ESP32_MKS_DLC32
-      gpio_number : GPIO_NUM_NC,
-#else
+#ifdef ARDUINO_ESP32_EVB
       gpio_number : GPIO_NUM_39,
+#else
+      gpio_number : GPIO_NUM_NC,
 #endif
       register_address : GPIO_IN1_REG,
       register_bit : BIT7,
@@ -324,7 +331,11 @@ const struct inputPin_Config_s inputPinsConfig[7] = {
       name : "Z Endstop",
       udp_in_num : 4,
       pin_mode : INPUT_PULLUP,
+#ifdef ARDUINO_ESP32_EVB
       gpio_number : GPIO_NUM_34,
+#else
+      gpio_number : GPIO_NUM_34,
+#endif
       register_address : GPIO_IN1_REG,
       register_bit : BIT2,
       fb_input_mask : IO_04
@@ -333,7 +344,11 @@ const struct inputPin_Config_s inputPinsConfig[7] = {
       name : "X Endstop",
       udp_in_num : 5,
       pin_mode : INPUT_PULLUP,
+#ifdef ARDUINO_ESP32_EVB
       gpio_number : GPIO_NUM_35,
+#else
+      gpio_number : GPIO_NUM_NC,
+#endif
       register_address : GPIO_IN1_REG,
       register_bit : BIT3,
       fb_input_mask : IO_05
@@ -342,7 +357,11 @@ const struct inputPin_Config_s inputPinsConfig[7] = {
       name : "Y Endstop",
       udp_in_num : 6,
       pin_mode : INPUT_PULLUP,
+#ifdef ARDUINO_ESP32_EVB
       gpio_number : GPIO_NUM_36,
+#else
+      gpio_number : GPIO_NUM_NC,
+#endif
       register_address : GPIO_IN1_REG,
       register_bit : BIT4,
       fb_input_mask : IO_06

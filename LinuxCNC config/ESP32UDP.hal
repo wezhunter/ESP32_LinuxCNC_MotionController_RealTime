@@ -113,6 +113,8 @@ setp    pid.z.maxcmdDDD             [JOINT_2]PID_MAXCMD_DDD
 setp    pid.z.maxoutput             [JOINT_2]PID_MAXOUTPUT
 setp    pid.z.error-previous-target [JOINT_2]PID_EPT
 
+net     feedrate-override  halui.feed-override.value  esp32udp.feedrate-override
+
 #======= X axis ===========================
 
 net     x-pos-cmd       joint.0.motor-pos-cmd       pid.x.command       esp32udp.0.position-cmd
@@ -120,6 +122,8 @@ net     x-vel-cmd-pre   joint.0.vel-cmd             pid.x.command-deriv
 net     x-pos-fb        esp32udp.0.position-fb           pid.x.feedback      joint.0.motor-pos-fb
 net     x-vel-fb        esp32udp.0.velocity-fb           pid.x.feedback-deriv
 net     x-vel-cmd       pid.x.output                esp32udp.0.velocity-cmd
+
+net     x-free-vel-lim    joint.0.free-vel-lim        esp32udp.0.velocity-limit
 
 #net     x-pos-cmd       joint.0.motor-pos-cmd       esp32udp.0.position-cmd
 #net     x-pos-fb        esp32udp.0.position-fb           joint.0.motor-pos-fb
@@ -132,6 +136,8 @@ net     y-vel-cmd-pre   joint.1.vel-cmd             pid.y.command-deriv
 net     y-pos-fb        esp32udp.1.position-fb           pid.y.feedback      joint.1.motor-pos-fb
 net     y-vel-fb        esp32udp.1.velocity-fb           pid.y.feedback-deriv
 net     y-vel-cmd       pid.y.output                esp32udp.1.velocity-cmd
+
+net     y-free-vel-lim    joint.1.free-vel-lim        esp32udp.1.velocity-limit
 
 #net     y-pos-cmd       joint.1.motor-pos-cmd       esp32udp.1.position-cmd
 #net     y-pos-fb        esp32udp.1.position-fb           joint.1.motor-pos-fb
@@ -148,6 +154,8 @@ net     z-vel-fb        esp32udp.2.velocity-fb           pid.z.feedback-deriv
 net     z-pos-cmd-comp  comp-offset.out             pid.z.command       esp32udp.2.position-cmd
 net     z-pos-fb-comp   comp-offset.fb-out          joint.2.motor-pos-fb
 net     z-vel-cmd       pid.z.output                esp32udp.2.velocity-cmd
+
+net     z-free-vel-lim    joint.2.free-vel-lim        esp32udp.2.velocity-limit
 
 #net     z-comp          comp-limit.out              comp-offset.offset
 #net     z-pos-cmd       joint.2.motor-pos-cmd       comp-offset.in
