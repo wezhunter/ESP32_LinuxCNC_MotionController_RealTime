@@ -13,7 +13,9 @@ const String version_number =  "20240202dev2";
 #define DRIVER_RMT 1
 #define UDP_PACKET_BUF_SIZE 70 /* Need to update this if increasing MAX_STEPPER from default of 6 so that cmd and fb structs can be serialised  */
 
-#define UDP_RECEIVEPACKET_BIT   (1UL << 0UL) // zero shift for bit0
+#define UDP_RECEIVE_PACKET_BIT  0b00000001
+#define UDP_SEND_PACKET_BIT     0b00000011
+#define ESPNOW_SEND_BIT         0b00000111
 
 #define MAX_STEPPER 6
 #define MAX_INPUTS 7
@@ -77,6 +79,17 @@ struct fbPacket {
     volatile int32_t vel[MAX_STEPPER];
     uint32_t udp_seq_num;
 };
+
+typedef struct espnow_add_peer_msg {
+  byte mac_adddress[6];
+} espnow_add_peer_msg;
+
+typedef struct espnow_message {
+  char a[32];
+  int b;
+  float c;
+  bool d;
+} espnow_message;
 
 
 struct stepper_config_s {

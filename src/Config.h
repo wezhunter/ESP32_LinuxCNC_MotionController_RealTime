@@ -17,8 +17,11 @@
 #define DEBUG_AXIS_MOVEMENTS /* Enables axis movement detailed debugging to aid troubleshooting of motor jitter or noise during prolonged movements  */
 #define ENABLE_WIFI       /* Enable WIFI and connect to SSID configured below */
 
-#define CONF_WIFI_SSID "YOURSSID"
-#define CONF_WIFI_PWD "YOURPASSWORD"
+#define WIFI_ACCESSPOINTMODE
+//#define WIFI_CLIENTMODE
+
+#define CONF_WIFI_SSID "ESP32LCNCCtrl"
+#define CONF_WIFI_PWD "LinuxCNCPassword1"
 
 /* Ethernet config and IP Addressing */
 const uint8_t mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };

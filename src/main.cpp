@@ -50,6 +50,7 @@
 #endif
 
 #include <WiFi.h>        // For connecting ESP32 to WiFi
+#include <esp_now.h>     // ESP-NOW wifi point-to-point for another ESP32 to wireless send data to LinuxCNC
 #include <ArduinoOTA.h>  // For enabling over-the-air updates via network either WiFi or Ethernet
 
 #include <esp_timer.h>
@@ -76,7 +77,9 @@
 FastAccelStepperEngine stepperEngine = FastAccelStepperEngine();
 hw_timer_t * timerServoCmds = NULL;
 
-EventGroupHandle_t  xEventUdpReceiveGroup;
+EventGroupHandle_t  xEventUDPPacketStateGroup = xEventGroupCreate();
+EventGroupHandle_t  xEventStateChangeGroup = xEventGroupCreate();
+
 xQueueHandle IRAM_ATTR inputInterruptQueue;
 xQueueHandle IRAM_ATTR axisStateInterruptQueue;
 /*==================================================================*/
@@ -169,6 +172,11 @@ uint8_t inputPinInterruptFired[MAX_INPUTS] = { 0 };
 cmdPacket cmd = { 0 };
 fbPacket fb = { 0 };
 
+espnow_message espnowData;
+espnow_add_peer_msg espnowAddPeerMsg;
+esp_now_peer_info_t peerInfo;
+bool espnow_peer_configured = false;
+
 volatile uint8_t prev_cmd_control = 0;
 
 volatile unsigned long ul_dirSetup[MAX_STEPPER] = { 1000 }; 
@@ -198,11 +206,14 @@ bool debugAxisMovements = false;
 volatile uint8_t axisState[MAX_STEPPER] = {0};
 volatile uint8_t prev_axisState[MAX_STEPPER] = {0};
 
-volatile int8_t sendUdpPacket = 0;
-volatile int8_t udpRxPacket = 0;
+//volatile int8_t sendUdpPacket = 0;
+//volatile int8_t udpRxPacket = 0;
+
+uint8_t sendEspNowPacket = 0;
 
 volatile uint32_t udpPacketTxErrors = 0;
 volatile uint32_t udpPacketRxErrors = 0;
+volatile uint32_t espnowTxPackets = 0;
 
 volatile uint32_t inputInterruptCounter = 0;
 
@@ -346,6 +357,7 @@ void IRAM_ATTR inputHandler()
                 fb.io = 0; // set initial fb.io value
         }
     }
+    xEventGroupSetBits(xEventStateChangeGroup, ESPNOW_SEND_BIT); // Send an async ESP-NOW packet as required
 }
 /*==================================================================*/
 
@@ -477,6 +489,61 @@ void IRAM_ATTR commandHandler()
 }
 
 /*==================================================================*/
+// ESP-NOW P2P WiFi callback when data is sent
+void espnowOnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  //logMessage("\r\nLast Packet Send Status:\t");
+//   if (status != ESP_NOW_SEND_SUCCESS) {
+//     logMessage(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success\r\n" : "Delivery Fail\r\n");
+//   }
+  
+}
+
+// ESP-NOW P2P WiFi callback function that will be executed when data is received
+void espnowOnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+    //logMessage("ESP-NOW: RX: %d\r\n", len);
+    if (len == sizeof(espnowAddPeerMsg)) {
+        logMessage("ESP-NOW: Add new peer mac message received\r\n");
+        memcpy(&espnowAddPeerMsg, incomingData, sizeof(espnowAddPeerMsg));
+        //String mac_addr = String(espnowAddPeerMsg.mac_adddress);
+        //logMessage("ESP-NOW: Adding peer MAC: %s\r\n", espnowAddPeerMsg.mac_adddress);
+        logMessage("ESP-NOW: Adding peer MAC: '%02X:%02X:%02X:%02X:%02X:%02X'\r\n", 
+            espnowAddPeerMsg.mac_adddress[0],espnowAddPeerMsg.mac_adddress[1],espnowAddPeerMsg.mac_adddress[2],espnowAddPeerMsg.mac_adddress[3],
+            espnowAddPeerMsg.mac_adddress[4],espnowAddPeerMsg.mac_adddress[5],espnowAddPeerMsg.mac_adddress[6]);
+        
+        // Register peer
+        memcpy(peerInfo.peer_addr, espnowAddPeerMsg.mac_adddress, 6);
+        peerInfo.channel = 0;  
+        peerInfo.encrypt = false;
+        
+        esp_now_del_peer(peerInfo.peer_addr); // Delete peer mac first to remove dups (lazy but easiest way)
+
+        // Add peer
+        if (esp_now_add_peer(&peerInfo) != ESP_OK){
+            logMessage("Failed to add ESP-NOW peer\r\n");
+            espnow_peer_configured = false;
+            return;
+        } else {
+            logMessage("Added ESP-NOW Peer\r\n");
+            espnow_peer_configured = true;
+        }
+        
+
+    } else if (len == sizeof(espnowData)) {
+        memcpy(&espnowData, incomingData, sizeof(espnowData));
+
+        // Serial.print("Bytes received: ");
+        // Serial.println(len);
+        // Serial.print("Char: ");
+        // Serial.println(espnowData.a);
+        // Serial.print("Int: ");
+        // Serial.println(espnowData.b);
+        // Serial.print("Float: ");
+        // Serial.println(espnowData.c);
+        // Serial.print("Bool: ");
+        // Serial.println(espnowData.d);
+        // Serial.println();
+    }
+}
 
 void WiFiEvent(WiFiEvent_t event) 
 {
@@ -525,6 +592,7 @@ void WiFiEvent(WiFiEvent_t event)
 size_t IRAM_ATTR sendUDPFeedbackPacket() 
 {
     bool result = true;
+    fb.udp_seq_num++;
     memcpy(&packetBufferTx, &fb, sizeof(fb));
     size_t res = udpClient.write(packetBufferTx, sizeof(fb));
     if (res != sizeof(fb)) {
@@ -532,10 +600,6 @@ size_t IRAM_ATTR sendUDPFeedbackPacket()
     }
     
     memset(packetBufferTx, 0, sizeof(packetBufferTx));
-    sendUdpPacket--;
-    if (sendUdpPacket < 0) {
-        sendUdpPacket = 0;
-    }
     
     udp_tx_seq_num++;
     
@@ -556,7 +620,7 @@ void IRAM_ATTR onUDPRxPacketCallBack(AsyncUDPPacket packet)
         if (packet.data()[sizeof(cmd)] == chk) {
             udp_rx_seq_num++;
             memcpy(&cmd, packet.data(), sizeof(cmd));
-            xEventGroupSetBits(xEventUdpReceiveGroup, UDP_RECEIVEPACKET_BIT);
+            xEventGroupSetBits(xEventUDPPacketStateGroup, UDP_RECEIVE_PACKET_BIT);
         } else {
             udpPacketRxErrors++;
             if (udpPacketRxErrors > 1000) {
@@ -566,8 +630,8 @@ void IRAM_ATTR onUDPRxPacketCallBack(AsyncUDPPacket packet)
             return;
         }
         
-        sendUdpPacket++;
-    }           
+        xEventGroupSetBits(xEventUDPPacketStateGroup, UDP_SEND_PACKET_BIT); // Send an async ESP-NOW packet as required
+    }
 }
 
 void IRAM_ATTR loop_Core0_UDPSendTask(void* parameter)
@@ -576,21 +640,28 @@ void IRAM_ATTR loop_Core0_UDPSendTask(void* parameter)
     
     logMessage("UDP Send connect to IP: %s, Port: %d, Result: %d\r\n", ip_host.toString().c_str(), udpClientPort, udpClient.connect(ip_host,udpClientPort));
     size_t sent_len = 0;
+    const EventBits_t xBitsToWaitFor = (UDP_SEND_PACKET_BIT);
+    EventBits_t xEventGroupValue;
+    const TickType_t xTicksToWait = 1 / portTICK_PERIOD_MS; // Wait 1000ms
+    
     while (runLoops) {
         if (!udpClient.connected()) {
             logMessage("UDP Client unable to connect. Retrying in 5s\r\n");
-            udpClient.connect(ip_host,udpClientPort);
+            udpClient.connect(ip_host, udpClientPort);
             vTaskDelay(5000 / portTICK_PERIOD_MS);
         }
         
-        while (sendUdpPacket > 0) {
-            sent_len = sendUDPFeedbackPacket();
-            if (sent_len == 0)
-                break;
+        xEventGroupValue  = xEventGroupWaitBits(xEventUDPPacketStateGroup, xBitsToWaitFor, pdTRUE, pdTRUE, portMAX_DELAY); 
+
+        if (( xEventGroupValue & ( UDP_SEND_PACKET_BIT ) ) == ( UDP_SEND_PACKET_BIT )) /* If UDP Packet TX bit is set */
+        {
+            sendUDPFeedbackPacket();
+            xEventGroupClearBits(xEventUDPPacketStateGroup, UDP_SEND_PACKET_BIT);
         }
         
-        vTaskDelay(1 / portTICK_PERIOD_MS);
+        //vTaskDelay(1);
     }
+    
     logMessage("Exiting loop_Core0_UDPSendTask\r\n");
     vTaskDelete(NULL);
 }
@@ -611,19 +682,24 @@ void IRAM_ATTR loop_Core0_InputPinHandlerTask(void * parameter)
         if (xQueueReceive(inputInterruptQueue, &inputIndex, portMAX_DELAY))
         {
             const struct inputPin_Config_s *pin_config = &inputPinsConfig[inputIndex];
-
+            
             /* Updates the fb.io struct with the GPIO register state from the inputPin_config struct data in Config.h */
             bool registerBitState = (bool)REG_GET_BIT(pin_config->register_address, pin_config->register_bit);
-            (registerBitState) ? fb.io |= pin_config->fb_input_mask : fb.io &= ~pin_config->fb_input_mask;
-            inputPinInterruptFired[inputIndex]++;
+            if ((fb.io & pin_config->fb_input_mask) != registerBitState) {
+                (registerBitState) ? fb.io |= pin_config->fb_input_mask : fb.io &= ~pin_config->fb_input_mask;
+                inputPinInterruptFired[inputIndex]++;
 
-            if (inputPinInterruptFired[inputIndex] >= 50) {
-                logMessage("WARNING: Excessive input changes. Index: %d, GPIO: %d, Name: '%s'. Changed %d times. Resetting counter\r\n", inputIndex, pin_config->gpio_number, pin_config->name, inputPinInterruptFired[inputIndex]);
-                inputPinInterruptFired[inputIndex] = 0;
+                if (inputPinInterruptFired[inputIndex] >= 50) {
+                    logMessage("WARNING: Excessive input changes. Index: %d, GPIO: %d, Name: '%s'. Changed %d times. Resetting counter\r\n", inputIndex, pin_config->gpio_number, pin_config->name, inputPinInterruptFired[inputIndex]);
+                    inputPinInterruptFired[inputIndex] = 0;
+                }
+
+                xEventGroupSetBits(xEventStateChangeGroup, (ESPNOW_SEND_BIT)); // Send an async ESP-NOW packet as required
+
+                if (!motorsMoving) // Only send a udp feedback pkt if motors are stationary. When moving the feedback is done in realtime as per the fb.io struct
+                    xEventGroupSetBits(xEventUDPPacketStateGroup, (UDP_SEND_PACKET_BIT));
             }
-            
-            if (!motorsMoving) // Only send a udp feedback pkt if motors are stationary. When moving the feedback is done in realtime as per the fb.io struct
-                sendUdpPacket++;
+           
         }
     }
     logMessage("Exiting loop_Core0_InputPinHandlerTask\r\n");
@@ -638,7 +714,7 @@ void IRAM_ATTR loop_Core0_CommandHandlerTask(void* parameter)
 
     esp_task_wdt_delete(NULL); /* Disable the Task Watchdog (not core WD) for this task as the servo thread in FastAccelStepper can interfere with the it. No impact as the UDP packet based watchdog with catch any, if any, hung conditions */
 
-    const EventBits_t xBitsToWaitFor  = (UDP_RECEIVEPACKET_BIT);
+    const EventBits_t xBitsToWaitFor = (UDP_RECEIVE_PACKET_BIT);
     EventBits_t xEventGroupValue;
     
     while(runLoops) {
@@ -655,9 +731,9 @@ void IRAM_ATTR loop_Core0_CommandHandlerTask(void* parameter)
             ul_udptxrx_watchdog = millis();
         }
         /* Waits 50ms for an event from UDP packet from onUDPRxPacketCallBack(). Delay is only a few ticks if RX multiple packets */
-        xEventGroupValue  = xEventGroupWaitBits(xEventUdpReceiveGroup, xBitsToWaitFor, pdTRUE, pdTRUE, portMAX_DELAY); 
+        xEventGroupValue  = xEventGroupWaitBits(xEventUDPPacketStateGroup, xBitsToWaitFor, pdTRUE, pdTRUE, portMAX_DELAY); 
 
-        if((xEventGroupValue & UDP_RECEIVEPACKET_BIT) !=0) /* If UDP Packet RX bit is set */
+        if (( xEventGroupValue & ( UDP_RECEIVE_PACKET_BIT ) ) == ( UDP_RECEIVE_PACKET_BIT )) /* If UDP Packet RX bit is set */
         {          
             ul_udptxrx_watchdog = millis();
             
@@ -669,8 +745,9 @@ void IRAM_ATTR loop_Core0_CommandHandlerTask(void* parameter)
             } else {
                 vTaskDelay(50 / portTICK_PERIOD_MS);
             }
+            //xEventGroupClearBits(xEventStateChangeGroup, UDP_RECEIVE_PACKET_BIT);
         }
-        xEventGroupClearBits(xEventUdpReceiveGroup, UDP_RECEIVEPACKET_BIT);
+        
         /* No need for a vTaskDelay or yield context switch here since the event group delay above handles it */
     }
 
@@ -680,6 +757,66 @@ void IRAM_ATTR loop_Core0_CommandHandlerTask(void* parameter)
 
 /*==================================================================*/
 
+void loop_Core1_EspNowSenderTask(void* parameter) /* No need for IRAM since low speed background task */
+{
+    logMessage("loop_Core1_EspNowSenderTask running...\r\n");
+    const EventBits_t xBitsToWaitFor = (ESPNOW_SEND_BIT);
+    EventBits_t xEventGroupValue;  
+    TickType_t xTicksToWait = 1000 / portTICK_PERIOD_MS; // Wait 1000ms
+
+    while (runLoops) {
+        if (espnow_peer_configured) {
+            if (motorsMoving)
+                xTicksToWait = 200 / portTICK_PERIOD_MS; // 200ms packet interval
+            else
+                xTicksToWait = 1000 / portTICK_PERIOD_MS; // 1 second packet interval
+            
+            xEventGroupValue  = xEventGroupWaitBits(xEventStateChangeGroup, xBitsToWaitFor, pdTRUE, pdTRUE, xTicksToWait);
+
+            if (( xEventGroupValue & ( ESPNOW_SEND_BIT ) ) == ( ESPNOW_SEND_BIT )) /* If ESPNOW Send bit is set */
+            {
+                esp_err_t result = esp_now_send(peerInfo.peer_addr, (uint8_t *) &fb, sizeof(fb)); // Send a current fb struct
+            
+                if (result == ESP_OK) {
+                    espnowTxPackets++;
+                } else {
+                    logMessage("ESP-NOW: Error sending data to peer\r\n");
+                }
+                
+                xEventGroupClearBits(xEventStateChangeGroup, ESPNOW_SEND_BIT);
+
+            } else { // Send packet every 1000ms regardless
+                
+                /* Example struct that can be sent */
+
+                // strcpy(espnowData.a, "THIS IS A CHAR");
+                // espnowData.b = random(1,20);
+                // espnowData.c = 1.2;
+                // espnowData.d = false;
+                //esp_err_t result = esp_now_send(peerInfo.peer_addr, (uint8_t *) &espnowData, sizeof(espnowData)); // Example struct to send
+
+                esp_err_t result = esp_now_send(peerInfo.peer_addr, (uint8_t *) &fb, sizeof(fb)); // Send a current fb struct
+            
+                if (result == ESP_OK) {
+                    espnowTxPackets++;
+                } else {
+                    logMessage("ESP-NOW: Error sending data to peer\r\n");
+                }
+                
+            }
+
+            vTaskDelay(1); /* Yield 1ms */
+
+        } else {
+            vTaskDelay(1000 / portTICK_PERIOD_MS); /* Yield 1s */
+        }
+        
+    }
+    
+    logMessage("Exiting loop_Core1_EspNowSenderTask\r\n");
+    vTaskDelete(NULL);
+}
+
 void IRAM_ATTR loop_Core1_ServoStatsTask(void* parameter) /* No need for IRAM since low speed background task */
 {
     logMessage("loop_Core1_ServoStatsTask running...\r\n");
@@ -688,7 +825,7 @@ void IRAM_ATTR loop_Core1_ServoStatsTask(void* parameter) /* No need for IRAM si
         if (serialConsoleEnabled) {
             long now_ProfileStats = millis();
             if (now_ProfileStats - lastMsg_ProfileStats > 1000) {
-                logMessage("UDP: TX PPS: %d, RX PPS: %d, TX Errors: %d, RX Errors: %d, Input Interrupt Ctr: %d\r\n", udp_tx_seq_num, udp_rx_seq_num, udpPacketTxErrors, udpPacketRxErrors, inputInterruptCounter);
+                logMessage("UDP: TX PPS: %d, RX PPS: %d, TX Errors: %d, RX Errors: %d, EspNowTX: %d, InputIntrCtr: %d\r\n", udp_tx_seq_num, udp_rx_seq_num, udpPacketTxErrors, udpPacketRxErrors, espnowTxPackets, inputInterruptCounter);
                 udp_tx_seq_num = 0;
                 udp_rx_seq_num = 0;
                 inputInterruptCounter = 0;
@@ -777,24 +914,20 @@ void debugAxisState(uint8_t axisNum) {
     
 }
 
-void IRAM_ATTR updateAxisState(uint8_t axisNum, uint8_t mask ) {
-    if (!debugAxisMovements)
-        return;
-    
+void IRAM_ATTR updateAxisState(uint8_t axisNum, uint8_t mask ) {    
     axisState[axisNum] = (mask);
     if (axisState[axisNum] != prev_axisState[axisNum]) {
-        xQueueSendFromISR(axisStateInterruptQueue, &axisNum, NULL);    
+        if (debugAxisMovements)
+            xQueueSendFromISR(axisStateInterruptQueue, &axisNum, NULL);    
         prev_axisState[axisNum] = axisState[axisNum];
     } 
 }
-void IRAM_ATTR updateAxisState(uint8_t axisNum, uint8_t bit, bool new_value ) {
-    if (!debugAxisMovements)
-        return;
-    
+void IRAM_ATTR updateAxisState(uint8_t axisNum, uint8_t bit, bool new_value ) {   
     if (bit == AXIS_STATE_STOPPED && new_value == 1)
     {
         axisState[axisNum] = 0;
-        xQueueSendFromISR(axisStateInterruptQueue, &axisNum, NULL);
+        if (debugAxisMovements)
+            xQueueSendFromISR(axisStateInterruptQueue, &axisNum, NULL);
         return;
     }
 
@@ -804,7 +937,8 @@ void IRAM_ATTR updateAxisState(uint8_t axisNum, uint8_t bit, bool new_value ) {
         axisState[axisNum] &= ~(bit);
     
     if (axisState[axisNum] != prev_axisState[axisNum]) {
-        xQueueSendFromISR(axisStateInterruptQueue, &axisNum, NULL);    
+        if (debugAxisMovements)
+            xQueueSendFromISR(axisStateInterruptQueue, &axisNum, NULL);
         prev_axisState[axisNum] = axisState[axisNum];
     }    
 }
@@ -892,24 +1026,24 @@ void IRAM_ATTR ServoMovementCmds_ISR()
                     uint8_t rampState = stepper[i]->rampState();
                     
                     if (rampState != prevRampState[i]) {
-                        if (rampState & RAMP_STATE_ACCELERATE) {
+                        if (rampState & RAMP_STATE_ACCELERATE) { // Motor is accelerating
                             updateAxisState(i, (AXIS_STATE_COASTING | AXIS_STATE_DECELERATING), 0);
                             updateAxisState(i, AXIS_STATE_ACCELERATING, 1);
-                        } else if ((rampState & RAMP_STATE_COAST)) {
+                        } else if ((rampState & RAMP_STATE_COAST)) { // Motor is coasting/at-speed
                             updateAxisState(i, (AXIS_STATE_DECELERATING | AXIS_STATE_ACCELERATING | AXIS_STATE_MOVE_ACCEL_REQ), 0);
                             updateAxisState(i, AXIS_STATE_COASTING, 1);
                             stepper[i]->setLinearAcceleration(100);
                             stepper[i]->applySpeedAcceleration();
-                        } else if ((rampState & RAMP_STATE_DECELERATE)) {
+                        } else if ((rampState & RAMP_STATE_DECELERATE)) { // Motor is decelerating
                             updateAxisState(i, (AXIS_STATE_ACCELERATING | AXIS_STATE_COASTING), 0);
                             updateAxisState(i, AXIS_STATE_DECELERATING, 1);
                         }
-                        if ((rampState & RAMP_DIRECTION_COUNT_UP)) {
+                        if ((rampState & RAMP_DIRECTION_COUNT_UP)) { // Motor is moving forwards
                             updateAxisState(i, AXIS_STATE_MOVING_DIR, 1);
-                        } else if ((rampState & RAMP_DIRECTION_COUNT_DOWN)) {
+                        } else if ((rampState & RAMP_DIRECTION_COUNT_DOWN)) { // Motor is moving backwards
                             updateAxisState(i, AXIS_STATE_MOVING_DIR, 0);
                         }
-                        prevRampState[i] = rampState;
+                        prevRampState[i] = rampState; // update rampState cache to reduce calls during loops
                     }
 
                     fb.vel[i] = stepper[i]->getCurrentSpeedInMilliHz(true) * axisVelScaleFactor; // Update realtime feedback velocity using scaled value as the above. Ensuring a match with LinuxCNC is expecting for PID control aspects
@@ -925,6 +1059,8 @@ void IRAM_ATTR ServoMovementCmds_ISR()
                 }
             }
         }
+        if (motorsMoving != isMovementRunning)
+            xEventGroupSetBits(xEventStateChangeGroup, (ESPNOW_SEND_BIT)); // Send an async ESP-NOW packet to ensure motorsMoving is detected
         
         motorsMoving = isMovementRunning; /* Set globally - if ANY axes are moving */
     } else {
@@ -953,7 +1089,7 @@ void setup_Core0(void* parameter) /* Anything that wants to run on Core0 should 
 {
     logMessage("setup_Core0()\r\n");
 
-    xEventUdpReceiveGroup = xEventGroupCreate(); // Create event group
+    //xEventUdpReceiveGroup = xEventGroupCreate(); // Create event group
     inputInterruptQueue = xQueueCreate(30, sizeof(uint8_t)); // Create queue here
 
     logMessage("Starting Ethernet...\r\n");
@@ -1270,9 +1406,20 @@ void setup()
 
 #ifdef ENABLE_WIFI
     /* WiFi Enabled */
+#ifdef WIFI_CLIENTMODE
         logMessage("Connecting to WiFi SSID: %s\r\n", CONF_WIFI_SSID);
+        WiFi.mode(WIFI_MODE_APSTA);
         WiFi.begin(CONF_WIFI_SSID, CONF_WIFI_PWD);
+#endif
+#ifdef WIFI_ACCESSPOINTMODE
+        WiFi.mode(WIFI_MODE_APSTA);
+        //WiFi.begin(CONF_WIFI_SSID, CONF_WIFI_PWD);
+        WiFi.softAP(CONF_WIFI_SSID, CONF_WIFI_PWD,0,0,4); // WiFi needs to be enabled 
+#endif
+    
+        logMessage("WiFi MAC: %s\r\n", WiFi.macAddress().c_str());
         
+#ifdef WIFI_CLIENTMODE
         int connectCount = 0;
         while (WiFi.status() != WL_CONNECTED) {
             delay(500);
@@ -1282,6 +1429,20 @@ void setup()
                 break;
             }
         }
+#endif
+        // Init ESP-NOW
+        if (esp_now_init() != ESP_OK) {
+            logMessage("Error initializing ESP-NOW\r\n");
+        }
+
+        // Once ESPNow is successfully Init, we will register for recv CB to
+        // get recv packer info
+        esp_now_register_recv_cb(espnowOnDataRecv);
+
+        // Once ESPNow is successfully Init, we will register for Send CB to
+        // get the status of Transmitted packet
+        //esp_now_register_send_cb(espnowOnDataSent);
+  
         
 #else
     /* WiFi Disabled */
@@ -1293,7 +1454,8 @@ void setup()
     ArduinoOTA.onEnd(otaUpdateEnd);
     ArduinoOTA.onProgress(otaProgress);
     
-    WiFi.mode(WIFI_OFF); /* shutdown wifi */
+    //WiFi.mode(WIFI_OFF); /* shutdown wifi */
+
 #ifndef ENABLE_WIFI
     /* WiFi Disabled */
     WiFi.disconnect(true,false);  
@@ -1330,7 +1492,16 @@ void setup()
         NULL, // Task handle to keep track of created task
         1); // pin task to core 1
 #endif
-    
+
+    xTaskCreatePinnedToCore(
+        loop_Core1_EspNowSenderTask, // Task function.
+        "loop_Core1_EspNowSenderTask", // name of task.
+        2048, // Stack size of task
+        NULL, // parameter of the task
+        3, // priority of the task
+        NULL, // Task handle to keep track of created task
+        1); // pin task to core 1
+
     logMessage("Setup completed successfully\r\n");
 }
 
