@@ -146,7 +146,8 @@
 ### SPI Ethernet Firmware Only
 
 Configure SPI Ethernet module pins using `spiethconfig` 
-    ```
+
+```
     > spiethconfig --help
     SPI Ethernet Pin Configuration.
     Usage:
@@ -158,7 +159,7 @@ Configure SPI Ethernet module pins using `spiethconfig`
     -c, --sck arg        SCK pin
     -e, --csenable arg   Chip Select Enable pin
     -t, --interrupt arg  Interrupt pin
-    ```
+```
 
 
 ### Full Help Output
