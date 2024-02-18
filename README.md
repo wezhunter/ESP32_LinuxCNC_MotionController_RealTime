@@ -1,5 +1,5 @@
-# ESP32UDP - ESP32 & RMII/SPI Ethernet LinuxCNC Real time High Speed Smooth Motion Controller - 200khz Step Pulse Frequency Multi Axis
-Hardware based external step generator and IO interface for LinuxCNC over native RMII Ethernet OR W5500 SPI Ethernet on a dual core ESP32 for almost any board.<br>
+## ESP32UDP - ESP32 + Native RMII or SPI Ethernet LinuxCNC Real time High Speed Smooth Motion Controller - 200khz Step Pulse Frequency for Multi Axis solutions
+Hardware based external step generator and IO interface for LinuxCNC over native RMII Ethernet or W5500 SPI Ethernet on a dual core ESP32 for almost any board.<br>
 The hardware is connected to LinuxCNC via Ethernet.<br>
 The controller operates in position mode at low speed and at higher speeds in velocity mode.<br>
 
@@ -39,7 +39,7 @@ This project was originally based on it but the firmware source hardly resembles
 * Split codebase into separate files for respective features
 * Boot loop detection & safe mode CLI with Ethernet support for OTA flashing
 * Configuration manager implementation using NVS flash storage. Config retention between firmware updates and restarts
-* Default generic pinmaps for board types based on 'reasonable' available pins
+* Default generic pin maps for board types based on 'reasonable' available pins
 * Handle default RMII Phy pin config per board type. 
 * Configure SPI pins for SPI Ethernet module via CLI. Supports any board
 * Input PIN configuration per board type via CLI
@@ -52,24 +52,15 @@ This project was originally based on it but the firmware source hardly resembles
 * See console 'help' command or docs on how to configure each board
 
 ### NOTES
-* If you're experiencing problems with serial console ensure you 'restart' the board before issuing commands. Initial ANSI escape codes are sent to console during setup. TODO implement handling Serial RTS/DTS and send ANSI escape codes on connect.
-* See SerialCommands.md for basic serial console usage and board setup
+* If you're experiencing problems with serial console ensure you 'restart' the board before issuing commands. Initial ANSI escape codes are sent to console during setup. TODO implement handling Serial RTS/DTS and send ANSI escape codes on connect. This will be resolved soon
+* See `SerialCommands.md` for basic serial console usage and board setup
 
 ### Wiring Guides & Board Type Config
-Please see `/docs/Wiring.md` for wiring
-Serial Console doc is `SerialCommands.md`
+Please see `/docs/Wiring.md` for wiring<br>
+Serial Console doc is `SerialCommands.md`<br>
 
 ### TODO
-* ~~Refactor code splitting into several files~~
-* ~~Optimize IRAM cache hit ratios~~
-* ~~Improve logging and debugging~~
-* ~~Reduce RAM usage and manage infrequent strings better (PROGMEM)~~
-* Implement hardware based Encoder Quadrature incremental for counting for up-to 4 axes
-* Support I2C GPIO mux and interrupt feature to free up built-in GPIO pins to support 6 axes across many boards
-* Add Servo closed-loop PID control loops with LinuxCNC control
-* ~~Add SPI Ethernet support (WizNet W5500) and optimize for low latency in the event someone wants to use it in their design~~ DONE
-* Add USB-C Device RNDIS/ECM networking support on the ESP32-S2/S3 MCUs
-* Document all serial console commands and how they are used
+Please see Github Issues for an up-to date list
 
 ### Precompiled Firmware
 Two precompiled builds exist - One for SPI Ethernet and one for Native RMII Ethernet<br>
@@ -80,10 +71,15 @@ Use the serial command line interface to configure your board type 'boardconf' o
 Clone this repository and open it with platformIO in Visual Studio Code.<br>
 See Config.h for example board types choose a Environment for your ethernet type and flash<br>
 
-### Settings
+### LinxCNC Settings
 On LinuxCNC Host<br>
 Set your ethernet NIC that ESP32 is connected to 192.168.111.2/24 or any address other than 192.168.111.1 within the /24 subnet<br>
 ESP32 has a static ip of 192.168.111.1. This can be changed in Config.h<br>
+
+
+### Hardware
+Any ESP-WROOM/WROVER-32 board with RMII Ethernet Phy (e.g LAN8720) or a W5500 SPI Ethernet module attached to SPI interface with including Interrupt pin
+
 
 ### LinuxCNC driver
 ```bash
@@ -92,10 +88,7 @@ sudo apt-get install linuxcnc-uspace-dev build-essential
 ```bash
 sudo halcompile --install esp32udp.comp
 ```
-### Hardware
-Any ESP-WROOM/WROVER-32 board with RMII Ethernet Phy (e.g LAN8720) 
 
-Ideal pin mappings and available IO per board will be documented soon
 
 ### LinuxCNC HAL pins
 esp32udp.0.position_cmd (in - float) commanded position in position units

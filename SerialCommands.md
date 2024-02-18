@@ -143,24 +143,6 @@
 18) View IP configuration of both WiFi and Ethernet `ipconfig`
 19) Stop loop processing via `stop` command
 
-20) Configure WiFi via `wificonfig`:
-    ```
-    > wificonfig --help
-    Configure WiFi mode and AP/STA settings
-    Usage:
-    wificonfig [OPTION...]
-
-        --help          Show help
-    -m, --mode arg      WiFi Mode =
-                        0 = OFF,
-                        1 = STATION,
-                        2 = AP,
-                        3 = STATION+AP
-    -s, --ssid arg      SSID to connect to (STA) or host (AP)
-    -p, --password arg  Password
-    -h, --hidessid      SSID is hidden when in AP mode
-    ```
-
 
 ### SPI Ethernet Firmware Only
 
