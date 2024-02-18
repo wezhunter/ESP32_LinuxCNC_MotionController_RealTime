@@ -143,8 +143,9 @@
 18) View IP configuration of both WiFi and Ethernet `ipconfig`
 19) Stop loop processing via `stop` command
 
-SPI Ethernet firmware Only
-20) Configure SPI Ethernet module pins using `spiethconfig`
+### SPI Ethernet Firmware Only
+
+Configure SPI Ethernet module pins using `spiethconfig` 
     ```
     > spiethconfig --help
     SPI Ethernet Pin Configuration.
