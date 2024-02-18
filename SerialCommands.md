@@ -161,6 +161,13 @@ Configure SPI Ethernet module pins using `spiethconfig`
     -t, --interrupt arg  Interrupt pin
 ```
 
+### Client Mode Configuration
+
+Switch to client mode via `mode client` and `restart`
+When in client mode use the command `setcontrollermac 00:00:00:00:00:00` using the WiFi mac address of the controller that is printed on its console at boot.<br>
+Use `espnow on` on both Controller and Client in order for them to establish a connection.<br>
+Settings are saved into NVS and will persist during restarts or firmware upgrades.<br>
+
 
 ### Full Help Output
 ```
