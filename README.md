@@ -60,7 +60,15 @@ Please see `/docs/Wiring.md` for wiring<br>
 Serial Console doc is `SerialCommands.md`<br>
 
 ### TODO
-Please see Github Issues for an up-to date list
+Please see Github Issues for an up-to date list<br>
+
+### Reporting Problems or Providing Feedback
+Please report any issues using github Issues and they should typically be responded to within 24 hours<br>
+
+### Feature Requests or Pull Requests
+For feature requests or ideas please create an Issue<br>
+If contributing then please fork and create a appropriately named branch in your own repo<br>
+Submit a Pull Request and will be merged if it tests out fine<br>
 
 ### Precompiled Firmware
 Two precompiled builds exist - One for SPI Ethernet and one for Native RMII Ethernet<br>
@@ -91,67 +99,67 @@ sudo halcompile --install esp32udp.comp
 
 
 ### LinuxCNC HAL pins
-esp32udp.0.position_cmd (in - float) commanded position in position units
-esp32udp.1.position_cmd
-esp32udp.2.position_cmd
+esp32udp.0.position_cmd (in - float) commanded position in position units<br>
+esp32udp.1.position_cmd<br>
+esp32udp.2.position_cmd<br>
 
-esp32udp.0.velocity_cmd (in - float) commanded velocity in position units/s
-esp32udp.1.velocity_cmd
-esp32udp.2.velocity_cmd
+esp32udp.0.velocity_cmd (in - float) commanded velocity in position units/s<br>
+esp32udp.1.velocity_cmd<br>
+esp32udp.2.velocity_cmd<br>
 
-esp32udp.0.position_fb (out - float) feedback position in position units
-esp32udp.1.position_fb
-esp32udp.2.position_fb
+esp32udp.0.position_fb (out - float) feedback position in position units<br>
+esp32udp.1.position_fb<br>
+esp32udp.2.position_fb<br>
 
-esp32udp.0.velocity_fb (out - float) feedback velocity in position units/s
-esp32udp.1.velocity_fb
-esp32udp.2.velocity_fb
+esp32udp.0.velocity_fb (out - float) feedback velocity in position units/s<br>
+esp32udp.1.velocity_fb<br>
+esp32udp.2.velocity_fb<br>
 
-esp32udp.out.00 (in - bit) digital output
-esp32udp.out.01
-esp32udp.out.02
-esp32udp.out.03
-esp32udp.out.04
-esp32udp.out.05
+esp32udp.out.00 (in - bit) digital output<br>
+esp32udp.out.01<br>
+esp32udp.out.02<br>
+esp32udp.out.03<br>
+esp32udp.out.04<br>
+esp32udp.out.05<br>
 
-esp32udp.pwm.00 (in - float) PWM output 0...1
-esp32udp.pwm.01
-esp32udp.pwm.02
-esp32udp.pwm.03
-esp32udp.pwm.04
-esp32udp.pwm.05
+esp32udp.pwm.00 (in - float) PWM output 0...1<br>
+esp32udp.pwm.01<br>
+esp32udp.pwm.02<br>
+esp32udp.pwm.03<br>
+esp32udp.pwm.04<br>
+esp32udp.pwm.05<br>
 
-esp32udp.in.00 (out - bit) digital input
-esp32udp.in.01
-esp32udp.in.02
-esp32udp.in.03
-esp32udp.in.04
-esp32udp.in.05
-esp32udp.in.06
+esp32udp.in.00 (out - bit) digital input<br>
+esp32udp.in.01<br>
+esp32udp.in.02<br>
+esp32udp.in.03<br>
+esp32udp.in.04<br>
+esp32udp.in.05<br>
+esp32udp.in.06<br>
 
-esp32udp.ready 			 		(out - bit) module state
-esp32udp.enable 		 		(in - bit) module enable
-esp32udp.packets_lost_tx 		(out - s32) lost TX packets
-esp32udp.last_pkt_rx_time_ms	(out - s32) Last Packet RX Time in MS (up-to 5s when idle) 
-esp32udp.send_pkt				(out - s32) TX Packet queue counter 
-esp32udp.udp_seq_number		    (out - s32) UDP sequence number from ESP32, useful for monitoring 
+esp32udp.ready 			 		(out - bit) module state<br>
+esp32udp.enable 		 		(in - bit) module enable<br>
+esp32udp.packets_lost_tx 		(out - s32) lost TX packets<br>
+esp32udp.last_pkt_rx_time_ms	(out - s32) Last Packet RX Time in MS (up-to 5s when idle)<br>
+esp32udp.send_pkt				(out - s32) TX Packet queue counter<br>
+esp32udp.udp_seq_number		    (out - s32) UDP sequence number from ESP32, useful for monitoring<br>
 
 ### LinuxCNC HAL parameters
 
-esp32udp.0.scale (rw - float) steps per position unit
-esp32udp.1.scale
-esp32udp.2.scale
+esp32udp.0.scale (rw - float) steps per position unit<br>
+esp32udp.1.scale<br>
+esp32udp.2.scale<br>
 
-esp32udp.0.accel (rw - float) acceleration in position units/s<sup>2</sup>
-esp32udp.1.accel
-esp32udp.2.accel
+esp32udp.0.accel (rw - float) acceleration in position units/s<sup>2</sup><br>
+esp32udp.1.accel<br>
+esp32udp.2.accel<br>
 
-esp32udp.pwm.00.freq (rw - u32) PWM frequency in Hz 0..65000
-esp32udp.pwm.01.freq
-esp32udp.pwm.02.freq
-esp32udp.pwm.03.freq
-esp32udp.pwm.04.freq
-esp32udp.pwm.05.freq
+esp32udp.pwm.00.freq (rw - u32) PWM frequency in Hz 0..65000<br>
+esp32udp.pwm.01.freq<br>
+esp32udp.pwm.02.freq<br>
+esp32udp.pwm.03.freq<br>
+esp32udp.pwm.04.freq<br>
+esp32udp.pwm.05.freq<br>
 
 ### PWM usage
 If the esp32udp.pwm.xx.freq parameter is set to 0, the esp32udp.out.xx pin works and the esp32udp.pwm.xx pin does not.<br>
