@@ -17,7 +17,7 @@
 #endif
 
 
-const String version_number =  "20240214dev1";
+const String version_number =  "v20240218.01";
 
 #define DRIVER_RMT 1
 #define UDP_PACKET_BUF_SIZE 70 /* Need to update this if increasing MAX_STEPPER from default of 6 so that cmd and fb structs can be serialised  */

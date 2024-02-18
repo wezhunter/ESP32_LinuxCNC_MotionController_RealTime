@@ -1,7 +1,7 @@
 # ESP32UDP - ESP32 & RMII/SPI Ethernet LinuxCNC Real time High Speed Smooth Motion Controller - 200khz Step Pulse Frequency Multi Axis
-Hardware based external step generator and IO interface for LinuxCNC over native RMII Ethernet OR W5500 SPI Ethernet on a dual core ESP32 for almost any board.
-The hardware is connected to LinuxCNC via Ethernet.
-The controller operates in position mode at low speed and at higher speeds in velocity mode.
+Hardware based external step generator and IO interface for LinuxCNC over native RMII Ethernet OR W5500 SPI Ethernet on a dual core ESP32 for almost any board.<br>
+The hardware is connected to LinuxCNC via Ethernet.<br>
+The controller operates in position mode at low speed and at higher speeds in velocity mode.<br>
 
 
 ### Credits
@@ -68,18 +68,18 @@ This project was originally based on it but the firmware source hardly resembles
 * Document all serial console commands and how they are used
 
 ### Precompiled Firmware
-Two precompiled builds exist - One for SPI Ethernet and one for Native RMII Ethernet
-Download required firmware from github release section in this repo and flash using standard ESP32 tools
-Use the serial command line interface to configure your board type 'boardconf' or use one as a template and configure your own motors, inputs and outputs using the CLI
+Two precompiled builds exist - One for SPI Ethernet and one for Native RMII Ethernet<br>
+Download required firmware from github release section in this repo and flash using standard ESP32 tools<br>
+Use the serial command line interface to configure your board type 'boardconf' or use one as a template and configure your own motors, inputs and outputs using the CLI<br>
 
 ### Install & Build
-Clone this repository and open it with platformIO in Visual Studio Code.
-See Config.h for example board types choose a Environment for your ethernet type and flash
+Clone this repository and open it with platformIO in Visual Studio Code.<br>
+See Config.h for example board types choose a Environment for your ethernet type and flash<br>
 
 ### Settings
-On LinuxCNC Host
-Set your ethernet NIC that ESP32 is connected to 192.168.111.2/24 or any address other than 192.168.111.1 within the /24 subnet
-ESP32 has a static ip of 192.168.111.1. This can be changed in Config.h
+On LinuxCNC Host<br>
+Set your ethernet NIC that ESP32 is connected to 192.168.111.2/24 or any address other than 192.168.111.1 within the /24 subnet<br>
+ESP32 has a static ip of 192.168.111.1. This can be changed in Config.h<br>
 
 ### LinuxCNC driver
 ```bash
@@ -157,6 +157,5 @@ esp32udp.pwm.04.freq
 esp32udp.pwm.05.freq
 
 ### PWM usage
-If the esp32udp.pwm.xx.freq parameter is set to 0, the esp32udp.out.xx pin works and the esp32udp.pwm.xx pin does not.
-If the value of the esp32udp.pwm.xx.freq parameter is not 0, the esp32udp.out.xx pin does not work and the esp32udp.pwm.xx pin does.
-
+If the esp32udp.pwm.xx.freq parameter is set to 0, the esp32udp.out.xx pin works and the esp32udp.pwm.xx pin does not.<br>
+If the value of the esp32udp.pwm.xx.freq parameter is not 0, the esp32udp.out.xx pin does not work and the esp32udp.pwm.xx pin does.<br>
