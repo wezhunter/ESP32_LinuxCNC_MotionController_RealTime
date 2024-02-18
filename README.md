@@ -27,8 +27,8 @@ This project was originally based on it but the firmware source hardly resembles
 * Inputs pin status and triggers are handled by high speed interrupt handler and reading of GPIO input registers
 * ESP32 Pulse Counter peripheral is unused allowing for Servo Encoder feedback connection in future. Motor position reporting back to LinuxCNC PID controller should be straight forward
 * Multiple board support with native RMII ethernet modules or use W5500 SPI Ethernet module. Example boards with RMII PHYs (Native Ethernet): WT32-ETH01, Olimex ESP32-EVB, ESP32-Gateway, ESP32-POE
-* Future scope - ESP32-S2/S3 4 Axis USB based networking (USB RNDIS/ECM Ethernet) so no more Ethernet adapters or PHYs. A single $5 ESP32-S2 or S3 module with USB-C will handle all LinuxCNC real-time comms and high-speed and accurate motor driving (yes, it is possible!)
-* I2S Output on MKS-DLC32 3 (or 4) axis CNC board. Direction and Enable pins are provided by I2S. Step Pins are connected to the EXP1 header which can be wired to each axis 4 pin header if theres a need to use the PCB stepper driver modules. W5500 SPI Ethernet is connected to EXP2 and two I2C pins on header. Documentation updates coming soon
+* Future scope - ESP32-S2/S3 (4 or 8) Axis USB based networking (USB RNDIS/ECM Ethernet) so no more Ethernet adapters or PHYs. A single $5 ESP32-S2 or S3 module with USB-C will handle all LinuxCNC real-time comms and high-speed and accurate motor driving (yes, it is possible!)
+* I2S Output on MKS-DLC32 3 (or 4) axis CNC board. Direction and Enable pins are provided by I2S. Step Pins are connected to the EXP1 header which can be wired to each axis 4 pin header if theres a need to use the PCB stepper driver modules. W5500 SPI Ethernet is connected to EXP2 and two I2C pins on header. See Config.h for the default 4 axis pin configuration or here
 
 ### Major Refactor - Feb 2024
 * Breaking change - modified UDP server and client port on Controller to 58000. Requires recompile of HAL component detailed below
@@ -52,8 +52,12 @@ This project was originally based on it but the firmware source hardly resembles
 * See console 'help' command or docs on how to configure each board
 
 ### NOTES
-* If you're experiencing problems with serial console ensure you 'restart' the board before issuing commands. Initial ASCII escape codes are sent to console during setup. TODO implement handling Serial RTS/DTS and send ASCII codes on connect.
+* If you're experiencing problems with serial console ensure you 'restart' the board before issuing commands. Initial ANSI escape codes are sent to console during setup. TODO implement handling Serial RTS/DTS and send ANSI escape codes on connect.
 * See SerialCommands.md for basic serial console usage and board setup
+
+### Wiring Guides & Board Type Config
+Please see `/docs/Wiring.md` for wiring
+Serial Console doc is `SerialCommands.md`
 
 ### TODO
 * ~~Refactor code splitting into several files~~
