@@ -161,116 +161,116 @@ SPI Ethernet firmware Only
 
 
 ### Full Help Output
+```
 help 
-  Print the list of registered commands
+    Print the list of registered commands
 
 clear  
-  Clears the screen using ANSI codes
+    Clears the screen using ANSI codes
 
 history  
-  Shows and clear command history (using -c parameter)
+    Shows and clear command history (using -c parameter)
 
 echo  
-  Echos the text supplied as argument
+    Echos the text supplied as argument
 
 multiline_mode
-  Sets the multiline mode of the console
+    Sets the multiline mode of the console
 
 env
-  List all environment variables.
+    List all environment variables.
 
 declare
-  Change enviroment variables
+    Change enviroment variables
 
 sysinfo
-  Shows informations about the system like chip model and ESP-IDF version
+    Shows informations about the system like chip model and ESP-IDF version
 
 restart
-  Restart / Reboot the system
+    Restart / Reboot the system
 
 meminfo
-  Shows information about heap usage
+    Shows information about heap usage
 
 date
-  Shows and modify the system time
+    Shows and modify the system time
 
 ping
-  Ping host
+    Ping host
 
 ipconfig
-  Show IP and connection informations
+    Show IP and connection informations
 
 pinMode
-  Changes the pinmode of an GPIO pin (similar to Arduino function)
+    Changes the pinmode of an GPIO pin (similar to Arduino function)
 
 digitalRead
-  Reads the state of an input pin (similar to Arduino function)
+    Reads the state of an input pin (similar to Arduino function)
 
 digitalWrite
-  Writes the state of an ouput pin (similar to Arduino function)
+    Writes the state of an ouput pin (similar to Arduino function)
 
 analogRead
-  Show the voltage at an analog pin in millivollts.
+    Show the voltage at an analog pin in millivollts.
 
 setmotor  Use --help option of command for more info
-  Configure stepper motors pins and parameters
+    Configure stepper motors pins and parameters
 
 enablemotorconfig
-  Enable/Disable motor config at startup
+    Enable/Disable motor config at startup
 
 getmotor  Use --help option of command for more info
-  Get a stepper motors current config
+    Get a stepper motors current config
 
 stats
-  Loop task communications statistics
+    Loop task communications statistics
 
 mode
-  Set device mode to Client or Controller. mode = 'controller' | 'client'.
-
-Restart required
+    Set device mode to Client or Controller. mode = 'controller' | 'client'.
+    Restart required
 
 espnow
-  Enable/Disable ESP-NOW wireless P2P link between controller and client ESP32
-  devices
+    Enable/Disable ESP-NOW wireless P2P link between controller and client ESP32 devices
 
 log
-  Enable / Disable informational logging. 
+    Enable / Disable informational logging. 
 
 debug
-  Enable / Disable debug logging.
+    Enable / Disable debug logging.
 
 getconfig
-  Read environment configuration from NVS storage
+    Read environment configuration from NVS storage
 
 saveconfig
-  Save environment configuration to NVS storage
+    Save environment configuration to NVS storage
 
 resetconfig
-  Clear/reset NVS configuration to defaults
+    Clear/reset NVS configuration to defaults
 
 boardconfig  Use --help option of command for more info
-  Configure stepper motors pins and parameters
+    Configure stepper motors pins and parameters
 
 wificonfig  Use --help option of command for more info
-  Configure WiFi mode and AP/STA settings
+    Configure WiFi mode and AP/STA settings
 
 inputconfig  Use --help option of command for more info
-  Configure Input pins and parameters
+    Configure Input pins and parameters
 
 outputconfig  Use --help option of command for more info
-  Configure Output pins and parameters
+    Configure Output pins and parameters
 
 firmwareupdate
-  Perform firmware update via WiFi from online repository
+    Perform firmware update via WiFi from online repository
 
 uptime
-  System uptime in seconds
+    System uptime in seconds
 
 stop
-  Stop processing task loops
+    Stop processing task loops
 
 spiethconfig  Use --help option of command for more info
-  SPI Ethernet Pin Configuration.
+    SPI Ethernet Pin Configuration.
 
 motormovetest
-  Send debug motor movement for axis for either 'forwards' or 'backwards' moves
+    Send debug motor movement for axis for either 'forwards' or 'backwards' moves
+```

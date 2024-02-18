@@ -52,7 +52,8 @@ This project was originally based on it but the firmware source hardly resembles
 * See console 'help' command or docs on how to configure each board
 
 ### NOTES
-If you're experiencing problems with serial console ensure you 'restart' the board before issuing commands. Initial ASCII escape codes are sent to console during setup. TODO implement handling Serial RTS/DTS and send ASCII codes on connect.
+* If you're experiencing problems with serial console ensure you 'restart' the board before issuing commands. Initial ASCII escape codes are sent to console during setup. TODO implement handling Serial RTS/DTS and send ASCII codes on connect.
+* See SerialCommands.md for basic serial console usage and board setup
 
 ### TODO
 * ~~Refactor code splitting into several files~~
