@@ -1,0 +1,64 @@
+#######################################
+# Syntax Coloring Map For Ultrasound
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+AsyncUDP	KEYWORD1
+AsyncUDPPacket	KEYWORD1
+AsyncUDPMessage	KEYWORD1
+ip_addr_t	KEYWORD1
+
+AuPacketHandlerFunction	KEYWORD1
+AuPacketHandlerFunctionWithArg	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+###################
+# AsyncUDPMessage
+###################
+
+write KEYWORD2
+space KEYWORD2
+data  KEYWORD2
+length  KEYWORD2
+flush  KEYWORD2
+
+###################
+# AsyncUDPPacket
+###################
+
+data  KEYWORD2
+length  KEYWORD2
+isBroadcast	KEYWORD2
+isMulticast	KEYWORD2
+localIP	KEYWORD2
+localPort	KEYWORD2
+remoteIP	KEYWORD2
+remotePort	KEYWORD2
+send	KEYWORD2
+write	KEYWORD2
+
+###################
+# AsyncUDPPacket
+###################
+
+onPacket	KEYWORD2
+listen	KEYWORD2
+listenMulticast	KEYWORD2
+connect	KEYWORD2
+close	KEYWORD2
+write	KEYWORD2
+broadcastTo	KEYWORD2
+broadcast	KEYWORD2
+sendTo	KEYWORD2
+send	KEYWORD2
+connected	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################

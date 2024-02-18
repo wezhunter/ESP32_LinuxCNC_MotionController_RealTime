@@ -1,14 +1,23 @@
 #pragma once
+#ifndef TYPES_H
+#define TYPES_H
 
 #include <Arduino.h>
+#include <esp_now.h>
+#include "Config.h"
 #include "FastAccelStepper.h"
 #include "AsyncTCP.h"
+#include <ESP32Console.h>
+#include "ArduinoNvs.h"
+#include "ConfigManager.h"
+#include <WiFi.h>
 
 #if CONFIG_IDF_TARGET_ESP32S2
-    #define Serial Serial1
+    #define Serial Serial0
 #endif
 
-const String version_number =  "20240202dev2";
+
+const String version_number =  "20240214dev1";
 
 #define DRIVER_RMT 1
 #define UDP_PACKET_BUF_SIZE 70 /* Need to update this if increasing MAX_STEPPER from default of 6 so that cmd and fb structs can be serialised  */
@@ -17,9 +26,6 @@ const String version_number =  "20240202dev2";
 #define UDP_SEND_PACKET_BIT     0b00000011
 #define ESPNOW_SEND_BIT         0b00000111
 
-#define MAX_STEPPER 6
-#define MAX_INPUTS 7
-#define MAX_OUTPUTS 7
 
 #define CTRL_DIRSETUP 0b00000001
 #define CTRL_ACCEL    0b00000010
@@ -27,28 +33,6 @@ const String version_number =  "20240202dev2";
 #define CTRL_PWMFREQ  0b00000100
 #define CTRL_READY    0b01000000
 #define CTRL_ENABLE   0b10000000
-
-#define IO_00 0b00000001
-#define IO_01 0b00000010
-#define IO_02 0b00000100
-#define IO_03 0b00001000
-#define IO_04 0b00010000
-#define IO_05 0b00100000
-#define IO_06 0b01000000
-#define IO_07 0b10000000
-
-#define OUT_00_H 0
-#define OUT_00_L 0
-#define OUT_01_H 0
-#define OUT_01_L 0
-#define OUT_02_H 0
-#define OUT_02_L 0
-#define OUT_03_H 0
-#define OUT_03_L 0
-#define OUT_04_H 0
-#define OUT_04_L 0
-#define OUT_05_H 0
-#define OUT_05_L 0
 
 
 #define AXIS_STATE_STOPPED            0b01111111 // Send to clear all bits
@@ -81,7 +65,7 @@ struct fbPacket {
 };
 
 typedef struct espnow_add_peer_msg {
-  byte mac_adddress[6];
+  uint8_t mac_adddress[6];
 } espnow_add_peer_msg;
 
 typedef struct espnow_message {
@@ -91,85 +75,37 @@ typedef struct espnow_message {
   bool d;
 } espnow_message;
 
-
-struct stepper_config_s {
-  uint8_t step;
-  uint8_t enable_low_active;
-  uint8_t enable_high_active;
-  uint8_t direction;
-  uint16_t dir_change_delay;
-  bool direction_high_count_up;
-  bool auto_enable;
-  uint32_t on_delay_us;
-  uint16_t off_delay_ms;
-};
-
-struct inputPin_Config_s {
-  String name;
-  uint8_t udp_in_num;
-  uint8_t pin_mode;
-  gpio_num_t gpio_number; /* Use GPIO_NUM_NC for not connected pins/unused inputs */ 
-  int register_address;
-  int register_bit;
-  int fb_input_mask;
-};
-
-void IRAM_ATTR inputPinChangeISR(void* args);
-
 inline uint8_t telnetClientConnected = 0;
 inline AsyncClient* telnetClient; // TODO handle multiple telnet client connections for debugging - single one for now
 const char ctrlz_bytes[5] = {'\xff','\xed','\xff','\xfd','\x06'}; // CTRL+Z keypress bytes for linux telnet client so client can disconnect easily
 
-inline bool serialConsoleEnabled = true;
+inline bool consoleLogging = true;
+inline ESP32Console::Console console;
 
-inline size_t logMotorDebugMessage(uint8_t row, const char *format, ...) {
-    if (!serialConsoleEnabled)
-        return 0;
-    
-    va_list arg;
-    uint8_t col = 0;
+inline volatile uint32_t espnowTxPackets = 0;
+inline volatile uint32_t inputInterruptCounter = 0;
 
-    va_start(arg, format);
-    char temp[64];
-    char* buffer = temp;
-    size_t len = vsnprintf(temp, sizeof(temp), format, arg);
-    va_end(arg);
-    if (len > sizeof(temp) - 1) {
-        buffer = new char[len + 1];
-        if (!buffer) {
-            return 0;
-        }
-        va_start(arg, format);
-        vsnprintf(buffer, len + 1, format, arg);
-        va_end(arg);
-    }
-    if (row > 0) {
-        //(row == 1) ? col = 5 : col = (row * 20)+5; // Column spacing for each axis debug output
-    } else {
-        row = 3;
-    }
+inline EventGroupHandle_t  xEventStateChangeGroup;
+inline EventGroupHandle_t  xEventStateChangeGroupClient;
 
-       
-    /* Don't print to telnet client it's a bit slow for this data type*/
-    // if (telnetClientConnected > 0) {
-    //     telnetClient->write(buffer);
-    // }
-    
-    //len = Serial.print(buffer);
-    len = Serial.printf("\e[F\e[%dA\e[%dG%s\r\e[%dB\n",row, col,buffer, row);
+inline bool safeMode = false;
+inline volatile bool runLoops = false;
+inline bool startupStage1Complete = false;
 
-    if (buffer != temp) {
-        delete[] buffer;
-    }
-    return len;  
-}
+inline bool pwm_enable[MAX_OUTPUTS] = { false, false, false, false, false, false };
+
+inline uint8_t espnow_peer_configured = 0;
+
+inline espnow_message espnowData;
+inline espnow_add_peer_msg espnowAddPeerMsg;
+inline esp_now_peer_info_t peerInfo;
+
+inline fbPacket fb = { 0 };
+
+inline uint8_t sendEspNowPacket = 0;
 
 
-
-inline size_t logMessage(const char *format, ...) {
-    if (!serialConsoleEnabled)
-        return 0;
-    
+inline size_t logErrorMessage(const char *format, ...) {
     va_list arg;
     va_start(arg, format);
     char temp[64];
@@ -185,33 +121,97 @@ inline size_t logMessage(const char *format, ...) {
         vsnprintf(buffer, len + 1, format, arg);
         va_end(arg);
     }
-    //snprintf(buffer, strlen(buffer) + 1, "\e[F\e[4A%s\e[4B\r\n", buffer);
 
     if (telnetClientConnected > 0) {
         telnetClient->write(buffer);
     }
-//#ifdef DEBUG_AXIS_MOVEMENTS
-    //len = Serial.printf("\e[9999;1H\e[2A\e[K%s\e[2B",buffer);
-    len = Serial.printf("\e[F\e[4A%s\e[4B\r\n",buffer);
-    //len = Serial.println(buffer);
-// #else
-//     len = Serial.print(buffer);
-// #endif
+
+    len = printf("\n\e[F\e[1;91mERROR: %s\r\n\e[E\e[0m",buffer);
+
+    if (buffer != temp) {
+        delete[] buffer;
+    }
+    
+    return len;  
+}
+inline size_t logWarningMessage(const char *format, ...) {
+    va_list arg;
+    va_start(arg, format);
+    char temp[64];
+    char* buffer = temp;
+    size_t len = vsnprintf(temp, sizeof(temp), format, arg);
+    va_end(arg);
+    if (len > sizeof(temp) - 1) {
+        buffer = new char[len + 1];
+        if (!buffer) {
+            return 0;
+        }
+        va_start(arg, format);
+        vsnprintf(buffer, len + 1, format, arg);
+        va_end(arg);
+    }
+
+    if (telnetClientConnected > 0) {
+        telnetClient->write(buffer);
+    }
+
+    len = printf("\n\e[F\e[1;93mWARN: %s\r\n\e[E\e[0m",buffer);
+
+    if (buffer != temp) {
+        delete[] buffer;
+    }
+    
+    return len;  
+}
+
+
+inline size_t logMessage(const char *format,...) {
+    if (!consoleLogging)
+        return 0;
+    
+    va_list arg;
+    va_start(arg, format);
+    char temp[64];
+    char* buffer = temp;
+    size_t len = vsnprintf(temp, sizeof(temp), format, arg);
+    va_end(arg);
+    if (len > sizeof(temp) - 1) {
+        buffer = new char[len + 1];
+        if (!buffer) {
+            return 0;
+        }
+        va_start(arg, format);
+        vsnprintf(buffer, len + 1, format, arg);
+        va_end(arg);
+    }
+
+    if (telnetClientConnected > 0) {
+        telnetClient->write(buffer);
+    }
+
+    len = printf("\e[0m\n\e[F%s\r\n\e[E",buffer);
+
     if (buffer != temp) {
         delete[] buffer;
     }
     return len;  
 }
 
-inline void debugAxisState(uint8_t axisNum);
-//inline void updateAxisState(int axisNum, uint8_t bit, bool new_value );
-inline void telnetDisconnectAllClients();
-inline void onTelnetClient(void *s, AsyncClient* c);
-inline void onTelnetClientDisconnected(void *s, AsyncClient* c);
-inline void onTelnetClientData(void *s, AsyncClient* c, void *buf, size_t len);
 
-inline void otaUpdateStart();
-inline void otaUpdateEnd();
-inline void otaProgress(unsigned int progress, unsigned int total);
+extern void telnetDisconnectAllClients();
+extern void onTelnetClient(void *s, AsyncClient* c);
+extern void onTelnetClientDisconnected(void *s, AsyncClient* c);
+extern void onTelnetClientData(void *s, AsyncClient* c, void *buf, size_t len);
 
-inline void setWifiState(bool newState);
+extern void otaUpdateStart();
+extern void otaUpdateEnd();
+extern void otaProgress(unsigned int progress, unsigned int total);
+
+extern void setWifiState(bool newState);
+extern void stopProcessing();
+extern void IRAM_ATTR inputPinChangeISR(void* args);
+extern void IRAM_ATTR outputHandler();
+extern void IRAM_ATTR inputHandler();
+extern void startSafeModeEthernet();
+
+#endif

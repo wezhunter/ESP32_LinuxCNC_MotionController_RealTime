@@ -1,7 +1,7 @@
 /*    This is a component of LinuxCNC for external step generator over Ethernet
  *    Copyright 2024 Wez Hunter <wez at hunter dot to>
  *
- *    version: 20240119
+ *    version: 20240217
  *
  *    This program is free software; you can redistribute it and/or modify
  *    it under the terms of the GNU General Public License as published by
@@ -118,8 +118,8 @@ struct CMD cache_cmd = { 0 };
 #define RECV_TIMEOUT_US 100
 
 #define REMOTE_IP "192.168.111.1"
-#define REMOTE_UDP_PORT 58427
-#define LOCAL_UDP_PORT 58428
+#define REMOTE_UDP_PORT 58000
+#define LOCAL_UDP_PORT 58001
 
 int sockfd, n, rx, sockrxfd;
 struct sockaddr_in server;

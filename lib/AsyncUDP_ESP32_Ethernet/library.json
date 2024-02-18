@@ -1,0 +1,58 @@
+{
+  "name":"AsyncUDP_ESP32_Ethernet",
+  "version": "2.1.0",
+  "description":"Fully Asynchronous UDP Library for ESP32 boards using LwIP W5500, W6100 or ENC28J60 Ethernet. The library is easy to use and includes support for Unicast, Broadcast and Multicast environments",
+  "keywords":"communication, data, async, udp, ntp, time, time-server, server, client, multicast, broadcast, webserver, esp32, w5500, w6100, enc28j60, lwip, lwip-w5500, lwip-w6100, lwip-enc28j60, lwip-ethernet, udp-server, udp-multicast-server",
+  "authors": 
+  [
+    {
+      "name": "Hristo Gochkov",
+      "url":   "https://github.com/me-no-dev"
+    },
+    {
+      "name":  "Khoi Hoang",
+      "url":   "https://github.com/khoih-prog",
+      "email": "khoih.prog@gmail.com",
+      "maintainer": true
+    }  
+  ],
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/khoih-prog/AsyncUDP_ESP32_Ethernet"
+  },
+  "homepage": "https://github.com/khoih-prog/AsyncUDP_ESP32_Ethernet",
+  "export": {
+    "exclude": [
+      "linux",
+      "extras",
+      "tests"
+    ]
+  },
+  "dependencies": 
+  [
+    {
+      "owner": "khoih-prog",
+      "name": "WebServer_ESP32_W5500",
+      "version": "^1.5.2",
+      "platforms": "espressif32"
+    },
+    {
+      "owner": "khoih-prog",
+      "name": "WebServer_ESP32_W6100",
+      "version": "^1.5.2",
+      "platforms": "espressif32"
+    },
+    {
+      "owner": "khoih-prog",
+      "name": "WebServer_ESP32_ENC",
+      "version": "^1.5.1",
+      "platforms": "espressif32"
+    }
+  ],
+  "license": "LGPL-3.0",
+  "frameworks": "*",
+  "platforms": ["espressif32"],
+  "examples": "examples/*/*/*.ino",
+  "headers": [ "AsyncUDP_ESP32_Ethernet.h", "AsyncUDP_ESP32_Ethernet.hpp" ]
+}

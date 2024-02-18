@@ -1,0 +1,46 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"esp32-hal-tinyusb.h": "c",
+			"dfu_device.h": "c",
+			"tusb_common.h": "c",
+			"tusb_private.h": "c",
+			"usbd.h": "c",
+			"tusb_option.h": "c",
+			"tusb_console.h": "c",
+			"tinyusb.h": "c",
+			"sdkconfig.h": "c",
+			"esp32-hal.h": "c",
+			"tusb.h": "c",
+			"*.tcc": "cpp",
+			"fstream": "cpp",
+			"array": "cpp",
+			"deque": "cpp",
+			"list": "cpp",
+			"string": "cpp",
+			"unordered_map": "cpp",
+			"unordered_set": "cpp",
+			"vector": "cpp",
+			"string_view": "cpp",
+			"initializer_list": "cpp",
+			"regex": "cpp",
+			"optional": "cpp",
+			"istream": "cpp",
+			"ostream": "cpp",
+			"system_error": "cpp",
+			"functional": "cpp",
+			"tuple": "cpp",
+			"type_traits": "cpp",
+			"utility": "cpp",
+			"typeinfo": "cpp"
+		},
+		"cmake.automaticReconfigure": false,
+		"cmake.autoSelectActiveFolder": false,
+		"cmake.buildBeforeRun": false
+	}
+}

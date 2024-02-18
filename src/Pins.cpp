@@ -1,12 +1,5 @@
-#ifdef ARDUINO_ESP32_MKS_DLC32
-
-#define USE_I2S_OUT
-
 #include <Arduino.h>
 #include "Pins.h"
-#include "Config.h"
-#include "I2SOut.h"
-
 
 String pinName(uint8_t pin) {
     if (pin == UNDEFINED_PIN) {
@@ -32,9 +25,8 @@ void IRAM_ATTR digitalWrite(uint8_t pin, uint8_t val) {
         __digitalWrite(pin, val);
         return;
     }
-#ifdef USE_I2S_OUT
-    i2s_out_write(pin - I2S_OUT_PIN_BASE, val);
-#endif
+    if (configBoardType == BOARD_TYPE_ESP32_MKSDLC32)
+        i2s_out_write(pin - I2S_OUT_PIN_BASE, val);
 }
 
 void IRAM_ATTR pinMode(uint8_t pin, uint8_t mode) {
@@ -55,11 +47,10 @@ int IRAM_ATTR digitalRead(uint8_t pin) {
     if (pin < I2S_OUT_PIN_BASE) {
         return __digitalRead(pin);
     }
-#ifdef USE_I2S_OUT
-    return i2s_out_read(pin - I2S_OUT_PIN_BASE);
-#else
-    return 0;
-#endif
+    if (configBoardType == BOARD_TYPE_ESP32_MKSDLC32)
+        return i2s_out_read(pin - I2S_OUT_PIN_BASE);
+    else
+        return 0;
+
 }
 
-#endif

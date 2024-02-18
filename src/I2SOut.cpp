@@ -1,5 +1,3 @@
-#ifdef ARDUINO_ESP32_MKS_DLC32
-
 /*
     I2SOut.cpp
     Part of Grbl_ESP32
@@ -67,9 +65,6 @@ using namespace std;
 #include "I2SOut.h"
 #include "Config.h"
 #include "Pins.h"
-
-
-
 
 // Always enable I2S streaming logic
 #define USE_I2S_OUT_STREAM_IMPL
@@ -983,4 +978,3 @@ int IRAM_ATTR i2s_out_init() {
     return i2s_out_init(default_param);
 }
 
-#endif

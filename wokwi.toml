@@ -1,0 +1,14 @@
+[wokwi]
+version = 1
+elf = ".pio/build/esp32-wokwi-simulator/firmware.elf"
+firmware = ".pio/build/esp32-wokwi-simulator/firmware.bin"
+gdbServerPort=3333
+rfc2217ServerPort = 4000
+
+# Forward http://localhost:8180 to port 80 on the simulated ESP32:
+#[[net.forward]]
+#from = "58427"
+#to = "target:80"
+
+[net]
+gateway="ws://localhost:9011"

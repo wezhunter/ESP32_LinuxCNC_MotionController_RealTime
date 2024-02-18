@@ -1,0 +1,10 @@
+{
+    "cmake.automaticReconfigure": false,
+    "cmake.buildBeforeRun": false,
+    "cmake.configureOnEdit": false,
+    "cmake.exportCompileCommandsFile": false,
+    "cmake.parseBuildDiagnostics": false,
+    "cmake.loadCompileCommands": false,
+    "cmake.saveBeforeBuild": false,
+    "cmake.showSystemKits": false
+}

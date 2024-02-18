@@ -1,5 +1,4 @@
 #pragma once
-#ifdef ARDUINO_ESP32_MKS_DLC32
 
 /*
     I2SOut.h
@@ -42,9 +41,7 @@
 // It should be included at the outset to know the machine configuration.
 
 
-#    include <stdint.h>
-
-
+#include <stdint.h>
 
 const int UNDEFINED_PIN    = 255;  // Can be used to show a pin has no i/O assigned
 const int I2S_OUT_PIN_BASE = 128;
@@ -197,4 +194,3 @@ int i2s_out_reset();
      https://www.espressif.com/sites/default/files/documentation/esp32_technical_reference_manual_en.pdf
  */
 
-#endif

@@ -1,7 +1,16 @@
 #pragma once
 
+#ifndef CONFIG_H
+#define CONFIG_H
+
+
 #include <Arduino.h>
-#include "Types.hpp"
+#include "FastAccelStepper.h"
+#include "I2SOut.h"
+
+#if ESP32_RMII_ETHERNET
+  #include "Eth.h"
+#endif
 
 
 /*==================================================================*/
@@ -9,142 +18,40 @@
 // OK to change, but the ESP32 boot text is 115200, so you will not see that is your
 // serial monitor, sender, etc uses a different value than 115200
 #define BAUD_RATE 115200
+#ifdef MAX_STEPPER
+  #undef MAX_STEPPER
+#endif
+#define MAX_STEPPER 6
+#define MAX_BOARD_TYPES 7
+#define MAX_INPUTS 7
+#define MAX_OUTPUTS 7
 
-#define CONF_NUM_STEPPERS 3  /* Set how many motors you want to enable and update the stepper_config struct below with the motors you require */
+//#define CONF_NUM_STEPPERS 3  /* Set how many motors you want to enable and update the stepper_config struct below with the motors you require */
 /* !!!!Important!!!! Do not update the MAX_STEPPER define - this is set to 6 max and the size of the UDP RX/TX buffer is set accordingly to support up-to 6 max */
 
-#define ENABLE_SERIAL_STATS // Runs a Core1 async task that prints stats to serial console
-#define DEBUG_AXIS_MOVEMENTS /* Enables axis movement detailed debugging to aid troubleshooting of motor jitter or noise during prolonged movements  */
-#define ENABLE_WIFI       /* Enable WIFI and connect to SSID configured below */
-
-#define WIFI_ACCESSPOINTMODE
-//#define WIFI_CLIENTMODE
-
-#define CONF_WIFI_SSID "ESP32LCNCCtrl"
-#define CONF_WIFI_PWD "LinuxCNCPassword1"
-
 /* Ethernet config and IP Addressing */
-const uint8_t mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-const IPAddress my_ip(192, 168, 111, 1); /* ESP32 Ethernet IP Address */
-const IPAddress ip_host(192, 168, 111, 2); /* LinuxCNC Ethernet adapter IP must be configured as this */
-const IPAddress gw(192, 168, 111, 254); /* Only useful if you connect ESP32 and LinuxCNC Host on same network segment with a router or another network */
-const IPAddress subnetmask(255, 255, 255, 0);
+const static uint8_t   ethernet_mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+const static IPAddress ethernet_ip(192, 168, 111, 1); /* ESP32 Ethernet IP Address */
+const static IPAddress ethernet_ip_host(192, 168, 111, 2); /* LinuxCNC Ethernet adapter IP must be configured as this */
+const static IPAddress ethernet_gw(192, 168, 111, 254); /* Only useful if you connect ESP32 and LinuxCNC Host on same network segment with a router or another network */
+const static IPAddress ethernet_subnetmask(255, 255, 255, 0);
 
 /* Async UDP Client and Server is used to ensure bi-directional low-latency data streaming between ESP32 and LinuxCNC Host */
-const uint16_t udpServerPort = 58427;  /* UDP Server port the ESP32 listens on. LinuxCNC HAL driver sends data to this port */
-const uint16_t udpClientPort = 58428; /* UDP Client port the ESP32 connects to. LinuxCNC HAL driver runs a UDP server */
+const static uint16_t udpServerPort = 58000;  /* UDP Server port the ESP32 listens on. LinuxCNC HAL driver sends data to this port */
+const static uint16_t udpClientPort = 58001; /* UDP Client port the ESP32 connects to. LinuxCNC HAL driver runs a UDP server */
 
-#ifdef ARDUINO_ESP32_EVB
 
-  #define OUT_00_PIN    GPIO_NUM_NC
-  #define OUT_01_PIN    GPIO_NUM_NC
-  #define OUT_02_PIN    GPIO_NUM_33  // Relay #2 (Turns on when machine on)
-  #define OUT_03_PIN    GPIO_NUM_NC
-  #define OUT_04_PIN    GPIO_NUM_NC
-  #define OUT_05_PIN    GPIO_NUM_NC
-  
-  // Axis X GPIO pin set
-  #define X_DISABLE_PIN               GPIO_NUM_32 // # Shared Servo motor driver disable pin. Relay #1 on Olimex ESP32 EVB. Relay has 3.3v in common terminal and normally closed output goes to stepper drivers EN terminal
-  #define X_DIRECTION_PIN             GPIO_NUM_12
-  #define X_STEP_PIN                  GPIO_NUM_17
+#define IO_00 0b00000001
+#define IO_01 0b00000010
+#define IO_02 0b00000100
+#define IO_03 0b00001000
+#define IO_04 0b00010000
+#define IO_05 0b00100000
+#define IO_06 0b01000000
+#define IO_07 0b10000000
 
-  // Axis Y GPIO pin set
-  #define Y_DISABLE_PIN               GPIO_NUM_32
-  #define Y_DIRECTION_PIN             GPIO_NUM_4
-  #define Y_STEP_PIN                  GPIO_NUM_14
-      
-  // Axis Z GPIO pin set
-  #define Z_DISABLE_PIN               GPIO_NUM_32
-  #define Z_DIRECTION_PIN             GPIO_NUM_5
-  #define Z_STEP_PIN                  GPIO_NUM_15
 
-/*
-  // Axis A GPIO pin set
-  #define A_DISABLE_PIN               GPIO_NUM_32
-  #define A_DIRECTION_PIN             GPIO_NUM_16
-  #define A_STEP_PIN                  GPIO_NUM_13
-*/
-#elif defined(ARDUINO_ESP32_POE)
-
-  /* ETH PHY RESERVED GPIO
-     12, 17, 18, 19, 21, 22, 23, 25, 26
-    INPUT ONLY GPIO
-     34, 35, 36, 39
-     BOOTSTRAP GPIO
-     0, 2
-  */
-  #define OUT_00_PIN    GPIO_NUM_NC
-  #define OUT_01_PIN    GPIO_NUM_NC
-  #define OUT_02_PIN    GPIO_NUM_NC // Relay #2
-  #define OUT_03_PIN    GPIO_NUM_NC
-  #define OUT_04_PIN    GPIO_NUM_NC
-  #define OUT_05_PIN    GPIO_NUM_NC
-
-  //#define OUT_02_PIN    GPIO_NUM_33 // Relay #2
-
-  #define X_DISABLE_PIN               GPIO_NUM_13
-  #define X_DIRECTION_PIN             GPIO_NUM_32
-  #define X_STEP_PIN                  GPIO_NUM_33
-
-  // Y GPIO pin set
-  #define Y_DISABLE_PIN               GPIO_NUM_13
-  #define Y_DIRECTION_PIN             GPIO_NUM_4
-  #define Y_STEP_PIN                  GPIO_NUM_14
-      
-  // Axis Z GPIO pin set
-  //#if defined(USR_Z_MOTOR)
-  #define Z_DISABLE_PIN               GPIO_NUM_13
-  #define Z_DIRECTION_PIN             GPIO_NUM_5
-  #define Z_STEP_PIN                  GPIO_NUM_15
-
-/*
-  // Axis A GPIO pin set
-  #define A_DISABLE_PIN               GPIO_NUM_32
-  #define A_DIRECTION_PIN             GPIO_NUM_16
-  #define A_STEP_PIN                  GPIO_NUM_13
-*/
-#elif defined(ARDUINO_ESP32_WT32_ETH01)
-
-  #define OUT_00_PIN    GPIO_NUM_NC
-  #define OUT_01_PIN    GPIO_NUM_NC
-  #define OUT_02_PIN    GPIO_NUM_33 // Relay #2
-  #define OUT_03_PIN    GPIO_NUM_NC
-  #define OUT_04_PIN    GPIO_NUM_NC
-  #define OUT_05_PIN    GPIO_NUM_NC
-
-  // Axis X GPIO pin set    
-  #define X_DISABLE_PIN               GPIO_NUM_5
-  #define X_DIRECTION_PIN             GPIO_NUM_17
-  #define X_STEP_PIN                  GPIO_NUM_12
-
-  // Axis Y GPIO pin set
-  #define Y_DISABLE_PIN               GPIO_NUM_5
-  #define Y_DIRECTION_PIN             GPIO_NUM_4
-  #define Y_STEP_PIN                  GPIO_NUM_14
-      
-  // Axis Z GPIO pin set
-  #define Z_DISABLE_PIN               GPIO_NUM_5
-  #define Z_DIRECTION_PIN             GPIO_NUM_33
-  #define Z_STEP_PIN                  GPIO_NUM_15
-  
-  // Axis A GPIO pin set
-  #define A_DISABLE_PIN               GPIO_NUM_5
-  #define A_DIRECTION_PIN             GPIO_NUM_32
-  #define A_STEP_PIN                  GPIO_NUM_2
-
-#elif defined(ARDUINO_ESP32_MKS_DLC32)
-  #include "Pins.h"
-  #include "I2SOut.h"
-  
-  #define OUT_00_PIN    GPIO_NUM_NC
-  #define OUT_01_PIN    GPIO_NUM_NC
-  #define OUT_02_PIN    GPIO_NUM_NC
-  #define OUT_03_PIN    GPIO_NUM_NC
-  #define OUT_04_PIN    GPIO_NUM_NC
-  #define OUT_05_PIN    GPIO_NUM_NC
-
-  //#define _ASYNC_UDP_ESP32_ETHERNET_LOGLEVEL_            1
-  //#define _ETHERNET_WEBSERVER_LOGLEVEL_ 1
+#if ESP32_SPI_ETHERNET
   #define ASYNC_UDP_ESP32_ETHERNET_DEBUG_PORT      Serial
   
   #define ESP32_Ethernet_onEvent            ESP32_W5500_onEvent
@@ -154,220 +61,267 @@ const uint16_t udpClientPort = 58428; /* UDP Client port the ESP32 connects to. 
   #define W5500_CS_PIN                GPIO_NUM_0 
   #define W5500_INT_PIN               GPIO_NUM_4 
 
-  #define USE_I2S_OUT
-
-  // I2S pins set
-  #define I2S_OUT_BCK                 GPIO_NUM_16
-  #define I2S_OUT_WS                  GPIO_NUM_17
-  #define I2S_OUT_DATA                GPIO_NUM_21
-      
-
-  //#define IIC_SCL                     GPIO_NUM_4
-  //#define IIC_SDA                     GPIO_NUM_0
-
-  #define BEEPER					            I2SO(7)
-
-  // X I2S pin set    
-  #define X_DISABLE_PIN               I2SO(0)
-  #define X_DIRECTION_PIN             I2SO(2)
-  #define X_STEP_PIN                  GPIO_NUM_25 // LCD_CS EXP1 PIN7
-
-  // Y I2S pin set
-  #define Y_DISABLE_PIN               I2SO(0)
-  #define Y_DIRECTION_PIN             I2SO(6)
-  #define Y_STEP_PIN                  GPIO_NUM_26 // LCD_TOUCH_CS EXP1 PIN5
-      
-  // Z I2S pin set
-  #define Z_DISABLE_PIN               I2SO(0)
-  #define Z_DIRECTION_PIN             I2SO(4)
-  #define Z_STEP_PIN                  GPIO_NUM_27 // LCD_RST EXP1 Pin4
-
-
-#elif defined(ARDUINO_LOLIN_S2_MINI)
-
-  #define OUT_00_PIN    GPIO_NUM_NC
-  #define OUT_01_PIN    GPIO_NUM_NC
-  #define OUT_02_PIN    GPIO_NUM_33 // Relay #2
-  #define OUT_03_PIN    GPIO_NUM_NC
-  #define OUT_04_PIN    GPIO_NUM_NC
-  #define OUT_05_PIN    GPIO_NUM_NC
-
-  // Axis X GPIO pin set
-  #define X_DISABLE_PIN               GPIO_NUM_5
-  #define X_DIRECTION_PIN             GPIO_NUM_17
-  #define X_STEP_PIN                  GPIO_NUM_12
-
-  // Axis Y GPIO pin set
-  #define Y_DISABLE_PIN               GPIO_NUM_5
-  #define Y_DIRECTION_PIN             GPIO_NUM_4
-  #define Y_STEP_PIN                  GPIO_NUM_14
-      
-  // Axis Z GPIO pin set
-  //#if defined(USR_Z_MOTOR)
-  #define Z_DISABLE_PIN               GPIO_NUM_5
-  #define Z_DIRECTION_PIN             GPIO_NUM_33
-  #define Z_STEP_PIN                  GPIO_NUM_15
-  
-  // Axis A GPIO pin set
-  #define C_DISABLE_PIN               GPIO_NUM_5
-  #define C_DIRECTION_PIN             GPIO_NUM_32
-  #define C_STEP_PIN                  GPIO_NUM_2
-
 #endif
 
-/* Stepper Motor Configs */
 
-const struct stepper_config_s stepper_config[MAX_STEPPER] = {
-    {
-      // stepper 1 shall be connected to 
-      step : X_STEP_PIN,
-#ifdef ARDUINO_ESP32_EVB  /* Inverted motor enable pin for Olimex ESP32-EVB board to Relay#1 NC terminal */
-      enable_low_active : PIN_UNDEFINED,
-      enable_high_active : X_DISABLE_PIN,
-#else
-      enable_low_active : X_DISABLE_PIN,
-      enable_high_active : PIN_UNDEFINED,
-#endif
-      direction : X_DIRECTION_PIN,
-      dir_change_delay : 1000,
-      direction_high_count_up : true,
-      auto_enable : false,
-      on_delay_us : 5000,
-      off_delay_ms : 5
+/* I2S pins set. ** Only used if configBoardType == MKS-DLC32. Not wrapped in #ifdef as used at runtime based on 'boardconfig' type console config */
+#define I2S_OUT_BCK                 GPIO_NUM_16 /* ONLY used if configBoardType == MKS-DLC32 */
+#define I2S_OUT_WS                  GPIO_NUM_17 /* ONLY used if configBoardType == MKS-DLC32 */
+#define I2S_OUT_DATA                GPIO_NUM_21 /* ONLY used if configBoardType == MKS-DLC32 */
+
+typedef enum  { 
+    MODE_CONTROLLER = 0, 
+    MODE_CLIENT 
+} config_mode_t;
+
+
+typedef enum {
+    BOARD_TYPE_NONE = 0,            /* Basic board, no ethernet, wifi only */
+    BOARD_TYPE_ESP32_WOKWI_SIMUL,   /* WOKWI Simulator */
+    BOARD_TYPE_ESP32_POE,           /* POE */
+    BOARD_TYPE_ESP32_EVB,           /* EVB */
+    BOARD_TYPE_ESP32_GATEWAY,       /* GATEWAY */
+    BOARD_TYPE_ESP32_WT32_ETH01,    /* WT32_ETH01 */
+    BOARD_TYPE_ESP32_MKSDLC32       /* MKS_DLC32 */
+} board_type_t;
+
+typedef struct {
+  uint8_t step = PIN_UNDEFINED;
+  uint8_t direction = PIN_UNDEFINED;
+  uint8_t enable_low_active = PIN_UNDEFINED;
+  uint8_t enable_high_active = PIN_UNDEFINED;
+  uint16_t dir_change_delay = 1000;
+  bool direction_high_count_up = true;
+  bool auto_enable = false;
+  uint32_t on_delay_us = 2000;
+  uint16_t off_delay_ms = 5;
+} stepper_config_t;
+
+typedef struct  {
+    String name = "Unused";
+    bool pullup = true;
+    bool pulldown = false;
+    gpio_num_t gpio_number = GPIO_NUM_NC; /* Use GPIO_NUM_NC for not connected pins/unused inputs */ 
+    int register_address = GPIO_IN_REG;
+    int register_bit = 0;
+} inputpin_config_t;
+
+typedef struct  {
+    String name = "Unused";
+    int16_t gpio_number = GPIO_NUM_NC; /* Use GPIO_NUM_NC for not connected pins/unused outputs */ 
+} outputpin_config_t;
+
+typedef struct  {
+    board_type_t board_type = BOARD_TYPE_NONE;
+    uint8_t num_steppers = 0;
+    stepper_config_t stepperConfig[MAX_STEPPER] = { 0 };
+    inputpin_config_t inputConfigs[MAX_INPUTS] = {  };
+    outputpin_config_t outputConfigs[MAX_OUTPUTS] = {  };
+
+} board_pinconfig_t;
+
+
+/* Global vars */
+inline board_pinconfig_t board_pin_config; // Global for current board configuration store
+
+
+/* ETH PHY RESERVED GPIO
+     12, 17, 18, 19, 21, 22, 23, 25, 26
+    INPUT ONLY GPIO
+     34, 35, 36, 39
+     BOOTSTRAP GPIO
+     0, 2
+*/
+
+
+inline const board_pinconfig_t board_pin_configs[MAX_BOARD_TYPES] = {
+    { .board_type=BOARD_TYPE_NONE},
+    { .board_type=BOARD_TYPE_ESP32_WOKWI_SIMUL, .num_steppers=3,
+        .stepperConfig = {  
+                            { .step=23, .direction=22, .enable_low_active=5, .enable_high_active=PIN_UNDEFINED }, 
+                            { .step=19, .direction=18,  .enable_low_active=5, .enable_high_active=PIN_UNDEFINED }, 
+                            { .step=17, .direction=16, .enable_low_active=5, .enable_high_active=PIN_UNDEFINED }, 
+                        },
+        .inputConfigs = {
+                            {  },
+                            {  },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_NC  },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_NC },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_34, .register_address=GPIO_IN1_REG, .register_bit=BIT2 },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_35, .register_address=GPIO_IN1_REG, .register_bit=BIT3 },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_NC },
+                        },
+        .outputConfigs = {  
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                        }
     },
-    {
-      // stepper 2 shall be connected to 
-      step : Y_STEP_PIN,
-#ifdef ARDUINO_ESP32_EVB
-      enable_low_active : PIN_UNDEFINED,
-      enable_high_active : Y_DISABLE_PIN,
-#else
-      enable_low_active : Y_DISABLE_PIN,
-      enable_high_active : PIN_UNDEFINED,
-#endif
-      direction : Y_DIRECTION_PIN,
-      dir_change_delay : 1000,
-      direction_high_count_up : true,
-      auto_enable : false,
-      on_delay_us : 2000,
-      off_delay_ms : 5
+
+    { .board_type=BOARD_TYPE_ESP32_POE, .num_steppers=3,
+        .stepperConfig = {  
+                            { .step=33, .direction=32, .enable_low_active=13, .enable_high_active=PIN_UNDEFINED }, 
+                            { .step=14, .direction=4,  .enable_low_active=13, .enable_high_active=PIN_UNDEFINED }, 
+                            { .step=15, .direction=5,  .enable_low_active=13, .enable_high_active=PIN_UNDEFINED }, 
+                        },
+        .inputConfigs = {
+                            {  },
+                            {  },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_NC  },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_NC },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_34, .register_address=GPIO_IN1_REG, .register_bit=BIT2 },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_NC },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_NC },
+                        },
+        .outputConfigs = {  
+                            { .gpio_number=GPIO_NUM_0 },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                        }
     },
-    {
-      // stepper 3 shall be connected to 
-      step : Z_STEP_PIN,
-#ifdef ARDUINO_ESP32_EVB
-      enable_low_active : PIN_UNDEFINED,
-      enable_high_active : Z_DISABLE_PIN,
-#else
-      enable_low_active : Z_DISABLE_PIN,
-      enable_high_active : PIN_UNDEFINED,
-#endif
-      direction : Z_DIRECTION_PIN,
-      dir_change_delay : 1000,
-      direction_high_count_up : true,
-      auto_enable : false,
-      on_delay_us : 2000,
-      off_delay_ms : 5
+
+    { .board_type=BOARD_TYPE_ESP32_EVB, .num_steppers=3,
+        .stepperConfig = {  
+                            { .step=17, .direction=17, .enable_low_active=PIN_UNDEFINED, .enable_high_active=32 }, 
+                            { .step=14, .direction=4,  .enable_low_active=PIN_UNDEFINED, .enable_high_active=32 }, 
+                            { .step=15, .direction=33, .enable_low_active=PIN_UNDEFINED, .enable_high_active=32 }, 
+                        },
+        .inputConfigs = {
+                            {  },
+                            {  },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_16, .register_bit=BIT16 },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_39, .register_address=GPIO_IN1_REG, .register_bit=BIT7 },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_34, .register_address=GPIO_IN1_REG, .register_bit=BIT2 },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_35, .register_address=GPIO_IN1_REG, .register_bit=BIT3 },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_36, .register_address=GPIO_IN1_REG, .register_bit=BIT4 },
+                        },
+        .outputConfigs = {  
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_33 },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                        }
     },
-    // {
-    //   // stepper 4 shall be connected to 
-    //   step : C_STEP_PIN,
-    //   enable_low_active : PIN_UNDEFINED,
-    //   enable_high_active : C_DISABLE_PIN,
-    //   direction : C_DIRECTION_PIN,
-    //   dir_change_delay : 600,
-    //   direction_high_count_up : true,
-    //   auto_enable : false,
-    //   on_delay_us : 2000,
-    //   off_delay_ms : 5
-    // }
+
+    { .board_type=BOARD_TYPE_ESP32_GATEWAY, .num_steppers=3,
+        .stepperConfig = {  
+                            { .step=17, .direction=17, .enable_low_active=PIN_UNDEFINED, .enable_high_active=32 }, 
+                            { .step=14, .direction=4,  .enable_low_active=PIN_UNDEFINED, .enable_high_active=32 }, 
+                            { .step=15, .direction=33, .enable_low_active=PIN_UNDEFINED, .enable_high_active=32 }, 
+                        },
+        .inputConfigs = {
+                            {  },
+                            {  },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_NC },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_NC },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_34, .register_address=GPIO_IN1_REG, .register_bit=BIT2 },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_NC },
+                            {  .pullup=true, .gpio_number=GPIO_NUM_NC },
+                        },
+        .outputConfigs = {  
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                        }
+    },
+
+    { .board_type=BOARD_TYPE_ESP32_WT32_ETH01, .num_steppers=4,
+        .stepperConfig = {  
+                            { .step=12, .direction=17, .enable_low_active=5, .enable_high_active=PIN_UNDEFINED }, 
+                            { .step=14, .direction=4,  .enable_low_active=5, .enable_high_active=PIN_UNDEFINED }, 
+                            { .step=15, .direction=33, .enable_low_active=5, .enable_high_active=PIN_UNDEFINED }, 
+                            { .step=2,  .direction=32, .enable_low_active=5, .enable_high_active=PIN_UNDEFINED }
+                        },
+        .inputConfigs = {
+                            {  },
+                            {  },
+                            { .pullup=true, .gpio_number=GPIO_NUM_NC },
+                            { .pullup=true, .gpio_number=GPIO_NUM_NC },
+                            { .pullup=true, .gpio_number=GPIO_NUM_NC },
+                            { .pullup=true, .gpio_number=GPIO_NUM_NC },
+                            { .pullup=true, .gpio_number=GPIO_NUM_NC },
+                        },
+        .outputConfigs = {  
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                        }
+    },
+
+    { .board_type=BOARD_TYPE_ESP32_MKSDLC32, .num_steppers=4,
+        .stepperConfig = {  
+                            { .step=25, .direction=I2SO(2), .enable_low_active=I2SO(0), .enable_high_active=PIN_UNDEFINED }, // STEP=LCD_CS_0, DIR=X_DIR
+                            { .step=26, .direction=I2SO(6),  .enable_low_active=I2SO(0), .enable_high_active=PIN_UNDEFINED }, // STEP=LCD_TOUCH_CS, DIR=Y_DIR
+                            { .step=27, .direction=I2SO(4), .enable_low_active=I2SO(0), .enable_high_active=PIN_UNDEFINED }, // STEP=LCD_RST_0, DIR=Z_DIR
+                            { .step=5, .direction=33, .enable_low_active=I2SO(0), .enable_high_active=PIN_UNDEFINED }, // STEP=LCD_EN_0, DIR=LCD_RS
+                        },
+        .inputConfigs = {
+                            {  },
+                            {  },
+                            {  },
+                            { .name="ProbeIn", .pullup=true, .gpio_number=GPIO_NUM_22, .register_address=GPIO_IN_REG,  .register_bit=BIT22 },  // Probe in
+                            { .name="Z-", .pullup=true, .gpio_number=GPIO_NUM_34, .register_address=GPIO_IN1_REG, .register_bit=BIT2 },   // Z- IN
+                            { .name="Y-", .pullup=true, .gpio_number=GPIO_NUM_35, .register_address=GPIO_IN1_REG, .register_bit=BIT3 },   // Y- IN
+                            { .name="X-", .pullup=true, .gpio_number=GPIO_NUM_36, .register_address=GPIO_IN1_REG, .register_bit=BIT4 },   // X- IN
+                        },
+        .outputConfigs = {  
+                            { .name="BlueLed", .gpio_number=GPIO_NUM_2 }, // Machine on = Blue LED
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .gpio_number=GPIO_NUM_NC },
+                            { .name="PWMSpindle", .gpio_number=GPIO_NUM_32 }, // PWM "Spindle" output
+                            { .name="Beeper", .gpio_number=I2SO(7) }, // BEEPER
+                        }
+    }
+        
 };
 
-/* INPUT Configs */
 
-const struct inputPin_Config_s inputPinsConfig[7] = {
-    {
-      name : "Unused",
-      udp_in_num : 0,
-      pin_mode : INPUT_PULLUP,
-      gpio_number : GPIO_NUM_NC, // Not connected
-      register_address : GPIO_IN_REG,
-      register_bit : 0,
-      fb_input_mask : IO_00
-    },
-    {
-      name : "Unused",
-      udp_in_num : 1,
-      pin_mode : INPUT_PULLUP,
-      gpio_number : GPIO_NUM_NC, // Not connected
-      register_address : GPIO_IN_REG,
-      register_bit : 0,
-      fb_input_mask : IO_01
-    },
-    {
-      name : "TouchProbe",
-      udp_in_num : 2,
-      pin_mode : INPUT_PULLDOWN,
-#ifdef ARDUINO_ESP32_EVB
-      gpio_number : GPIO_NUM_16,
-#else
-      gpio_number : GPIO_NUM_NC,
-#endif
-      register_address : GPIO_IN_REG,
-      register_bit : BIT16,
-      fb_input_mask : IO_02
-    },
-    {
-      name : "TLProbe",
-      udp_in_num : 3,
-      pin_mode : INPUT_PULLDOWN,
-#ifdef ARDUINO_ESP32_EVB
-      gpio_number : GPIO_NUM_39,
-#else
-      gpio_number : GPIO_NUM_NC,
-#endif
-      register_address : GPIO_IN1_REG,
-      register_bit : BIT7,
-      fb_input_mask : IO_03
-    },
-    {
-      name : "Z Endstop",
-      udp_in_num : 4,
-      pin_mode : INPUT_PULLUP,
-#ifdef ARDUINO_ESP32_EVB
-      gpio_number : GPIO_NUM_34,
-#else
-      gpio_number : GPIO_NUM_34,
-#endif
-      register_address : GPIO_IN1_REG,
-      register_bit : BIT2,
-      fb_input_mask : IO_04
-    },
-    {
-      name : "X Endstop",
-      udp_in_num : 5,
-      pin_mode : INPUT_PULLUP,
-#ifdef ARDUINO_ESP32_EVB
-      gpio_number : GPIO_NUM_35,
-#else
-      gpio_number : GPIO_NUM_NC,
-#endif
-      register_address : GPIO_IN1_REG,
-      register_bit : BIT3,
-      fb_input_mask : IO_05
-    },
-    {
-      name : "Y Endstop",
-      udp_in_num : 6,
-      pin_mode : INPUT_PULLUP,
-#ifdef ARDUINO_ESP32_EVB
-      gpio_number : GPIO_NUM_36,
-#else
-      gpio_number : GPIO_NUM_NC,
-#endif
-      register_address : GPIO_IN1_REG,
-      register_bit : BIT4,
-      fb_input_mask : IO_06
-    },
-};
 
+
+#if ESP32_RMII_ETHERNET
+
+    typedef struct  {
+        board_type_t board_type = BOARD_TYPE_NONE;
+        int8_t address = -1;
+        int8_t power_enable_pin = -1;
+        int8_t phy_mdc_pin = -1;
+        int8_t phy_mdio_pin = -1;
+        eth_clock_mode_t phy_clk_mode = ETH_CLOCK_GPIO0_IN;
+        eth_phy_type_t phy_type = ETH_PHY_LAN8720;
+
+    } ethernet_phy_pinconfig_t;
+
+    inline ethernet_phy_pinconfig_t eth_phy_configs[6] = {
+        {.board_type=BOARD_TYPE_NONE}, 
+        {.board_type=BOARD_TYPE_ESP32_WOKWI_SIMUL},
+        {.board_type=BOARD_TYPE_ESP32_POE, .address=0, .power_enable_pin=12, .phy_mdc_pin=23, .phy_mdio_pin=18, .phy_clk_mode=ETH_CLOCK_GPIO17_OUT, .phy_type=ETH_PHY_LAN8720},
+        {.board_type=BOARD_TYPE_ESP32_EVB, .address=0, .power_enable_pin=-1, .phy_mdc_pin=23, .phy_mdio_pin=18, .phy_clk_mode=ETH_CLOCK_GPIO0_IN, .phy_type=ETH_PHY_LAN8720},
+        {.board_type=BOARD_TYPE_ESP32_GATEWAY, .address=0, .power_enable_pin=-1, .phy_mdc_pin=23, .phy_mdio_pin=18, .phy_clk_mode=ETH_CLOCK_GPIO0_IN, .phy_type=ETH_PHY_LAN8720},
+        {.board_type=BOARD_TYPE_ESP32_WT32_ETH01, .address=1, .power_enable_pin=16, .phy_mdc_pin=23, .phy_mdio_pin=18, .phy_clk_mode=ETH_CLOCK_GPIO0_IN, .phy_type=ETH_PHY_LAN8720 }
+    };
+
+#endif
+
+
+#endif
