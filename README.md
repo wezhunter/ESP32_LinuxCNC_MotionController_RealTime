@@ -3,6 +3,10 @@ Hardware based external step generator and IO interface for LinuxCNC over native
 The hardware is connected to LinuxCNC via Ethernet.<br>
 The controller operates in position mode at low speed and at higher speeds in velocity mode.<br>
 
+### NOTE - 28th Feb 2024
+There is a work in progress release which is currently being worked on offline due to the nature of rapid development and size of changes. 
+The new release adds smooth motion on ramp up, ESP32-S2 & S3 USB support and many bug fixes.
+It's advised to wait until that is released before experimenting with this
 
 ### Credits
 * Credit goes to Juhász Zoltán for his original great work and concept for the HAL2UDP components using W5500 SPI ethernet and software-based Step generation on ESP32.
@@ -50,6 +54,9 @@ This project was originally based on it but the firmware source hardly resembles
 * Wokwi sim uses "private gateway" to connect LinuxCNC to virtual ESP32 over UDP. Latency is high but sufficient to perform basic comms tests. <wokwigw --forward udp:58000:10.13.37.2:58000>
 * Implement speedy GDB debugging setup via Wokwi simulator
 * See console 'help' command or docs on how to configure each board
+
+### DISCLAIMER
+This is currently an experimental firmware and should NOT be used on any production machinery. If using on a machine then you should be prepared for it to break or obliterate your machine, unless you've benchtested it sufficiently. I accept no responsibility for any damages or injuries caused as a result of using this project. Use at your own risk.
 
 ### NOTES
 * If you're experiencing problems with serial console ensure you 'restart' the board before issuing commands. Initial ANSI escape codes are sent to console during setup. TODO implement handling Serial RTS/DTS and send ANSI escape codes on connect. This will be resolved soon
