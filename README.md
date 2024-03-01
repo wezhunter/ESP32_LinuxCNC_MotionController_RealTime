@@ -8,6 +8,9 @@ There is a work in progress release which is currently being worked on offline d
 The new release adds smooth motion on ramp up, ESP32-S2 & S3 USB support and many bug fixes.
 It's advised to wait until that is released before experimenting with this
 
+Board, motor and IO pin config via the serial console is deprecated in the next release in favour of a responsive WebUI. Basic serial console commands will remain for troubleshooting purposes.
+Configuration Export & Import to JSON will exist
+
 ### Credits
 * Credit goes to Juhász Zoltán for his original great work and concept for the HAL2UDP components using W5500 SPI ethernet and software-based Step generation on ESP32.
 This project was originally based on it but the firmware source hardly resembles any of it now. GPL licensing is given in the source header.
