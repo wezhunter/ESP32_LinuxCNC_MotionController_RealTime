@@ -18,6 +18,11 @@ It's advised to wait until that is released before experimenting with this
 Board, motor and IO pin config via the serial console is deprecated in the next release in favour of a responsive WebUI. Basic serial console commands will remain for troubleshooting purposes.
 Configuration Export & Import to JSON will exist
 
+### NOTE 3rd March 2024
+Validated that multi-axis 300kHz pulse generation (combined) is possible via RMT on both ESP32-S2 and S3 (USB Virtual Ethernet only).  <br>
+"Legacy" (not really) ESP32 optimisations need to be done to achieve the same on Native Ethernet ESP32's. <br>
+This is still at the early experiemental stages but looks promising thus far.  <br>
+
 ### Credits
 * Credit goes to Juhász Zoltán for his original great work and concept for the HAL2UDP components using W5500 SPI ethernet and software-based Step generation on ESP32.
 This project was originally based on it but the firmware source hardly resembles any of it now. GPL licensing is given in the source header.
