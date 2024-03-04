@@ -23,6 +23,17 @@ Validated that multi-axis 300kHz pulse generation (combined) is possible via RMT
 "Legacy" (not really) ESP32 optimisations need to be done to achieve the same on Native Ethernet ESP32's. <br>
 This is still at the early experiemental stages but looks promising thus far.  <br>
 
+### Update 4th March 2024
+Development continues, a specific type of ESP32-S3 module that was used during development had a booloader that was automatically loaded by the Arduino framework but not for others. This has slowed development somewhat since new hardware is required to be certain this does not impact testing.<br>
+
+For testing USB purposes, the following board will now be used:<br>
+Waveshare Pico S3 (RPI Pico pin compatible)<br>
+Freenove breakout RPI Pico board including level shifters<br>
+
+Stepper motors and general IO can be connected to this however be aware that any relays require flyback diodes
+<br>
+
+
 ### Credits
 * Credit goes to Juhász Zoltán for his original great work and concept for the HAL2UDP components using W5500 SPI ethernet and software-based Step generation on ESP32.
 This project was originally based on it but the firmware source hardly resembles any of it now. GPL licensing is given in the source header.
