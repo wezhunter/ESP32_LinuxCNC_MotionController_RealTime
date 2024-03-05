@@ -23,15 +23,19 @@ Validated that multi-axis 300kHz pulse generation (combined) is possible via RMT
 "Legacy" (not really) ESP32 optimisations need to be done to achieve the same on Native Ethernet ESP32's. <br>
 This is still at the early experiemental stages but looks promising thus far.  <br>
 
-### Update 4th March 2024
-Development continues, a specific type of ESP32-S3 module that was used during development had a booloader that was automatically loaded by the Arduino framework but not for others. This has slowed development somewhat since new hardware is required to be certain this does not impact testing.<br>
+### Update 4th/5th March 2024
+~~Development continues, a specific type of ESP32-S3 module that was used during development had a booloader that was automatically loaded by the Arduino framework but not for others. This has slowed development somewhat since new hardware is required to be certain this does not impact testing.<br>~~
+This is no longer an issue and new hardware below works.
 
 For testing USB purposes, the following board will now be used:<br>
-Waveshare Pico S3 (RPI Pico pin compatible)<br>
-Freenove breakout RPI Pico board including level shifters<br>
-
+* Waveshare Pico S3 (RPI Pico pin compatible)<br>
+* Freenove breakout RPI Pico board including level shifters<br>
+<br>
 Stepper motors and general IO can be connected to this however be aware that any relays require flyback diodes
 <br>
+
+A video showcasing 400kHz output on the S3 dual core via USB:
+[![S3 USB 400kHz](https://img.youtube.com/vi/wOK3almfPDc/0.jpg)](https://youtu.be/wOK3almfPDc)
 
 
 ### Credits
