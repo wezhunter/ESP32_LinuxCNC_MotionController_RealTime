@@ -3,7 +3,7 @@ Hardware based external step generator and IO interface for LinuxCNC over native
 The hardware is connected to LinuxCNC via Ethernet.<br>
 The controller operates in position mode at low speed and at higher speeds in velocity mode.<br>
 
-Reliable high speed, high precision multi-axis motion in hardware - smooth and fast 80khz on a single stepper!
+Reliable high speed, high precision multi-axis motion in hardware - smooth and fast up-to 200khz per stepper (400khz total)
 <br>
 It screams...
 
